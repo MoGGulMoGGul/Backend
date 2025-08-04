@@ -17,11 +17,13 @@ public class Notification {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long no; // 알림 식별 번호
 
-    @Column(name = "receiver_no", nullable = false)
-    private Long receiverNo; // 알림 수신자 (User.no)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "receiver_no", nullable = false)
+    private User receiver;// 알림 수신자 (User.no)
 
-    @Column(name = "tip_no", nullable = false)
-    private Long tipNo; // 관련된 팁 번호 (Tip.no)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tip_no", nullable = false)
+    private Tip tip; // 관련된 팁 번호 (Tip.no)
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now(); // 알림 발생 시각
