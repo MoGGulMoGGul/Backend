@@ -18,8 +18,9 @@ public class UserCredential {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long no; // 사용자 자격 정보 식별 번호
 
-    @Column(name = "user_no", nullable = false)
-    private Long userNo; // 연결된 사용자 번호 (users.no)
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_no", nullable = false)
+    private User user; // 연결된 사용자 번호 (users.no)
 
     @Column(name = "id", nullable = false, length = 50)
     private String id; // 사용자 로그인 ID

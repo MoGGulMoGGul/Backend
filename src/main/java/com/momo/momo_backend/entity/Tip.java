@@ -55,8 +55,8 @@ public class Tip {
     private List<Bookmark> bookmarks = new ArrayList<>();
 
     // 1:N(o) - Like
-    @OneToMany(mappedBy = "tip", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Like> likes = new ArrayList<>();
+//    @OneToMany(mappedBy = "tip", cascade = CascadeType.ALL, orphanRemoval = true)
+//    private List<Like> likes = new ArrayList<>();
 
     // 생성자, getter/setter 등은 Lombok 사용 가능
 }
