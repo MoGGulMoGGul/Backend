@@ -21,11 +21,11 @@ public class CustomUserDetailsService implements UserDetailsService {
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         // username = 로그인 ID
 
-        UserCredential credential = credentialRepository.findById(username)
+        UserCredential credential = credentialRepository.findByLoginId(username)
                 .orElseThrow(() -> new UsernameNotFoundException("로그인 정보를 찾을 수 없습니다: " + username));
 
-        User user = userRepository.findById(credential.getUserNo())
-                .orElseThrow(() -> new UsernameNotFoundException("사용자 정보를 찾을 수 없습니다: " + credential.getUserNo()));
+        User user = userRepository.findById(credential.getUser().getNo())
+                .orElseThrow(() -> new UsernameNotFoundException("사용자 정보를 찾을 수 없습니다: " + credential.getUser().getNo()));
 
         return new CustomUserDetails(user, credential);
     }

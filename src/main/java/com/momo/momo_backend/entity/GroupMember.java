@@ -1,26 +1,31 @@
 package com.momo.momo_backend.entity;
 
 import jakarta.persistence.*;
+import lombok.*;
+
 import java.time.LocalDateTime;
 
+@Getter                    // ✅ Lombok Getter 추가
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 @Entity
 @Table(name = "group_member")
 public class GroupMember {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long no;  // 그룹 멤버 고유 ID
+    private Long no;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_no", nullable = false)
-    private User user;  // 소속 사용자
+    private User user;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "group_no", nullable = false)
-    private Group group;  // 소속 그룹
+    private Group group;
 
     @Column(name = "joined_at", nullable = false)
-    private LocalDateTime joinedAt = LocalDateTime.now();  // 가입일
-
-    // 기본 생성자, getter/setter 생략 가능 (Lombok 사용 시)
+    private LocalDateTime joinedAt = LocalDateTime.now();
 }

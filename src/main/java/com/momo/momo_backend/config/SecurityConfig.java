@@ -1,7 +1,6 @@
 package com.momo.momo_backend.config;
 
 import com.momo.momo_backend.security.JwtAuthenticationFilter;
-import com.momo.momo_backend.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,7 +19,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableMethodSecurity  // @PreAuthorize 등 활성화
 public class SecurityConfig {
 
-    private final JwtTokenProvider jwtTokenProvider;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -31,11 +30,13 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/auth/**",         // 로그인/회원가입 허용
                                 "/swagger-ui/**",
-                                "/v3/api-docs/**"
+                                "/v3/api-docs/**",
+                                "/api/tips/tag/**",
+                                "/api/tips/public"
                         ).permitAll()
                         .anyRequest().authenticated()  // 나머지 요청은 인증 필요
                 )
-                .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 

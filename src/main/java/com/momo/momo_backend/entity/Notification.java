@@ -2,33 +2,37 @@ package com.momo.momo_backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import com.momo.momo_backend.enums.NotificationType;
+
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "notification")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor
 @Builder
+@Entity @Table(name = "notification")
 public class Notification {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long no; // 알림 식별 번호
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long no;
 
-    @Column(name = "receiver_no", nullable = false)
-    private Long receiverNo; // 알림 수신자 (User.no)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "receiver_no", nullable = false)
+    private User receiver;
 
-    @Column(name = "tip_no", nullable = false)
-    private Long tipNo; // 관련된 팁 번호 (Tip.no)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "tip_no", nullable = false)
+    private Tip tip;
 
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now(); // 알림 발생 시각
-
-    @Column(name = "type", nullable = false, length = 50)
-    private String type; // 알림 타입: FOLLOW, TIP_UPLOAD 등
-
+    @Builder.Default
     @Column(name = "is_read", nullable = false)
-    private boolean isRead = false; // 읽음 여부
+    private boolean isRead = false;
+
+    @Builder.Default
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type", nullable = false, length = 50)
+    private NotificationType type;
 }

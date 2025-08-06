@@ -5,20 +5,18 @@ import lombok.*;
 
 @Entity
 @Table(name = "tip_tag")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor @Builder
 public class TipTag {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long no; // 고유 식별 번호
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long no;
 
-    @Column(name = "tip_no", nullable = false)
-    private Long tipNo; // 연결된 꿀팁 번호 (tip.no)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "tip_no", nullable = false)
+    private Tip tip;          // ✔ Tip 엔티티와 연관
 
-    @Column(name = "tag_no", nullable = false)
-    private Long tagNo; // 연결된 태그 번호 (tag.no)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "tag_no", nullable = false)
+    private Tag tag;          // ✔ Tag 엔티티와 연관
 }

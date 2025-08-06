@@ -7,26 +7,23 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "user_credentials")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class UserCredential {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long no; // 사용자 자격 정보 식별 번호
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long no;
 
-    @Column(name = "user_no", nullable = false)
-    private Long userNo; // 연결된 사용자 번호 (users.no)
+    @OneToOne(fetch = FetchType.LAZY)                // 🔄 ManyToOne → OneToOne
+    @JoinColumn(name = "user_no", nullable = false)
+    private User user;
 
-    @Column(name = "id", nullable = false, length = 50)
-    private String id; // 사용자 로그인 ID
+    @Column(name = "id")
+    private String loginId;                          // 필드명 ‘id’ 충돌 방지
 
     @Column(name = "pw", nullable = false, length = 255)
-    private String pw; // 암호화된 비밀번호
+    private String pw;
 
+    @Builder.Default
     @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt = LocalDateTime.now(); // 마지막 업데이트 시각
+    private LocalDateTime updatedAt = LocalDateTime.now();
 }

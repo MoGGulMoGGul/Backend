@@ -1,33 +1,30 @@
 package com.momo.momo_backend.entity;
 
 import jakarta.persistence.*;
+import lombok.*;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+// src/main/java/com/momo/momo_backend/entity/Group.java
 @Entity
+@Getter               // ← 추가!
 @Table(name = "groups")
 public class Group {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long no;  // 그룹 식별 번호 (PK)
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long no;
 
-    @Column(nullable = false, length = 100)
-    private String name;  // 그룹명
+    private String name;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();  // 생성일
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt = LocalDateTime.now();
 
-    // ========== 연관 관계 ==========
-
-    // 1:N 관계 - GroupMember
+    /* 연관 관계 */
     @OneToMany(mappedBy = "group", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<GroupMember> groupMembers = new ArrayList<>();
 
-    // 1:N 관계 - Storage
     @OneToMany(mappedBy = "group", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Storage> storages = new ArrayList<>();
-
-    // 생성자, getter/setter 생략 가능 (Lombok 사용 가능)
 }

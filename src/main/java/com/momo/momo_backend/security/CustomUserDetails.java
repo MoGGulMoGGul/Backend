@@ -20,9 +20,13 @@ public class CustomUserDetails implements UserDetails {
         this.credential = credential;
     }
 
+    public User getUser() {
+        return this.user;
+    }
+
     @Override
     public String getUsername() {
-        return credential.getId();
+        return credential.getLoginId();
     }
 
     @Override
