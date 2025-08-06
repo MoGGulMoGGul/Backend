@@ -1,10 +1,15 @@
 package com.momo.momo_backend.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "bookmark")
+@Getter
+@Setter
 public class Bookmark {
 
     @Id
