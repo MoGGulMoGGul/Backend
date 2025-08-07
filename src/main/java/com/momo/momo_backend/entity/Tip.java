@@ -1,17 +1,19 @@
 package com.momo.momo_backend.entity;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "tip")
 @Getter
 @Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@Table(name = "tip")
 public class Tip {
 
     @Id
@@ -58,10 +60,4 @@ public class Tip {
     // 1:N(o) - Bookmark
     @OneToMany(mappedBy = "tip", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Bookmark> bookmarks = new ArrayList<>();
-
-    // 1:N(o) - Like
-//    @OneToMany(mappedBy = "tip", cascade = CascadeType.ALL, orphanRemoval = true)
-//    private List<Like> likes = new ArrayList<>();
-
-    // 생성자, getter/setter 등은 Lombok 사용 가능
 }

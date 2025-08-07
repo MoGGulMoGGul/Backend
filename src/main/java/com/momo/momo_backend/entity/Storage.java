@@ -1,17 +1,19 @@
 package com.momo.momo_backend.entity;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "storage")
 @Getter
 @Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@Table(name = "storage")
 public class Storage {
 
     @Id
@@ -40,6 +42,4 @@ public class Storage {
     // 1:N(o) 관계 - StorageTip
     @OneToMany(mappedBy = "storage", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<StorageTip> storageTips = new ArrayList<>();
-
-    // 기본 생성자, getter/setter 등은 Lombok 사용 가능
 }

@@ -19,16 +19,16 @@ public class UserOAuthConnection {
     private Long no; // OAuth 연결 식별 번호
 
     @Column(name = "oauth2_user_id", nullable = false, length = 255)
-    private String oauth2UserId; // OAuth 제공자에서 발급한 사용자 ID
+    private String oauth2UserId;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)          // ★ 추가
+    @JoinColumn(name = "provider_no", nullable = false)
+    private Oauth2Provider provider;                              // FK → 객체
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)          // ★ 핵심
+    @JoinColumn(name = "user_no", nullable = false)
+    private User user;                                            // FK → 객체
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now(); // 연결 생성 시각
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "provider_no", nullable = false)
-    private Oauth2Provider provider; // 연결된 OAuth 제공자 번호 (oauth2_providers.no)
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_no", nullable = false)
-    private User user; // 내부 사용자 번호 (users.no)
 }

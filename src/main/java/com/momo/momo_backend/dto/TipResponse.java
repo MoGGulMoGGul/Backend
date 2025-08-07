@@ -7,24 +7,29 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Getter
 @Builder
 public class TipResponse {
-    private Long no;
-    private String title;
-    private String content;
-    private Boolean isPublic;
-    private java.util.List<String> tags;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private Long no;                    // 꿀팁 ID
+    private String title;              // 꿀팁 제목
+    private String contentSummary;     // 꿀팁 요약
+    private String url;                // 원본 URL
+    private String nickname;           // 작성자 닉네임
+    private Boolean isPublic;          // 공개 여부
+    private List<String> tags;         // 태그 리스트
+    private LocalDateTime createdAt;   // 생성일
+    private LocalDateTime updatedAt;   // 수정일
 
     public static TipResponse from(Tip tip) {
         return TipResponse.builder()
                 .no(tip.getNo())
                 .title(tip.getTitle())
-                .content(tip.getContentSummary())
+                .contentSummary(tip.getContentSummary())
+                .url(tip.getUrl())
+                .nickname(tip.getUser().getNickname())
                 .isPublic(tip.getIsPublic())
                 .tags(tip.getTipTags().stream()
                         .map(TipTag::getTag)

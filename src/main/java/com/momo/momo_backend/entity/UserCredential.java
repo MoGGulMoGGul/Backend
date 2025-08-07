@@ -28,6 +28,7 @@ public class UserCredential {
     @Column(name = "pw", nullable = false, length = 255)
     private String pw; // 암호화된 비밀번호
 
+    @Builder.Default
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt = LocalDateTime.now(); // 마지막 업데이트 시각
 }

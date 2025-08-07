@@ -16,11 +16,11 @@ public class StorageTip {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long no; // 고유 식별자
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tip_no", nullable = false)
-    private Tip tip; // 꿀팁 번호 (tip.no)
-
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "storage_no", nullable = false)
-    private Storage storage; // 보관함 번호 (storage.no)
+    private Storage storage; // 꿀팁 번호 (tip.no)
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "tip_no", nullable = false)
+    private Tip tip; // 보관함 번호 (storage.no)
 }

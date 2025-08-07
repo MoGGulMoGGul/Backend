@@ -1,8 +1,7 @@
 package com.momo.momo_backend.entity;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.LocalDateTime;
 
@@ -10,6 +9,9 @@ import java.time.LocalDateTime;
 @Table(name = "bookmark")
 @Getter
 @Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Bookmark {
 
     @Id
@@ -26,9 +28,7 @@ public class Bookmark {
     @JoinColumn(name = "tip_no", nullable = false)
     private Tip tip;
 
+    @Builder.Default
     @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();  // 즐겨찾기 등록일
-
-    // 생성자, getter/setter 등은 Lombok 사용 가능
+    private LocalDateTime createdAt = LocalDateTime.now();
 }
-

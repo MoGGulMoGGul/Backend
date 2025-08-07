@@ -11,59 +11,105 @@ import com.momo.momo_backend.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
     private final UserRepository userRepository;
-    private final UserCredentialRepository userCredentialRepository;
+    private final UserCredentialRepository credentialRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
 
+    /* ------------------------- 회원가입 ------------------------- */
     public void signup(SignupRequest request) {
-        // 아이디 중복 확인
-        if (userCredentialRepository.findById(request.getId()).isPresent()) {
+        if (credentialRepository.findByLoginId(request.getId()).isPresent()
+                || userRepository.findByLoginId(request.getId()).isPresent()) {
             throw new IllegalArgumentException("이미 존재하는 아이디입니다.");
         }
 
-        // 사용자 생성 및 저장
-        User user = new User();
-        userRepository.save(user); // 먼저 저장 → no 생성됨
+        String encoded = passwordEncoder.encode(request.getPassword());
 
-        // 사용자 인증 정보 생성 및 저장
+        User user = userRepository.save(
+                User.builder()
+                        .loginId(request.getId())
+                        .password(encoded)  // users.password
+                        .nickname(request.getNickname())
+                        .build()
+        );
+
         UserCredential credential = UserCredential.builder()
-                .userNo(user.getNo())
-                .id(request.getId())
-                .pw(passwordEncoder.encode(request.getPassword()))
+                .user(user)
+                .loginId(request.getId())
+                .pw(encoded)
                 .build();
-        userCredentialRepository.save(credential);
 
-        // 관계 설정 (선택적으로 setCredential 호출 가능)
+        credentialRepository.save(credential);
     }
 
+    /* -------------------------- 로그인 -------------------------- */
     public LoginResponse login(LoginRequest request) {
-        UserCredential credential = userCredentialRepository.findById(request.getId())
+        UserCredential credential = credentialRepository.findByLoginId(request.getId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
 
         if (!passwordEncoder.matches(request.getPassword(), credential.getPw())) {
             throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
         }
 
-        User user = userRepository.findById(credential.getUserNo())
-                .orElseThrow(() -> new IllegalArgumentException("사용자 정보가 일치하지 않습니다."));
-
-        String accessToken = jwtTokenProvider.createAccessToken(credential.getId());
+        String accessToken  = jwtTokenProvider.createAccessToken(credential.getLoginId());
         String refreshToken = jwtTokenProvider.createRefreshToken();
 
         return new LoginResponse(accessToken, refreshToken);
     }
 
+    /* -------------------------- 회원탈퇴 -------------------------- */
+    @Transactional
+    public void withdraw(Long userNo) {
+        credentialRepository.deleteByUser_No(userNo);
+        userRepository.deleteById(userNo);
+    }
+
+    /* -------------------- 중복 체크 -------------------- */
     public boolean checkIdExists(String id) {
-        return userCredentialRepository.findById(id).isPresent();
+        return credentialRepository.findByLoginId(id).isPresent();
     }
 
     public boolean checkNicknameExists(String nickname) {
         return userRepository.findByNickname(nickname).isPresent();
     }
+
+    public String findId(String nickname, String password) {
+        User user = userRepository.findByNickname(nickname)
+                .orElseThrow(() -> new IllegalArgumentException("해당 닉네임의 사용자가 존재하지 않습니다."));
+
+        if (!passwordEncoder.matches(password, user.getPassword())) {
+            throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
+        }
+
+        return user.getLoginId(); // loginId 반환
+    }
+
+    public void resetPassword(String id, String nickname, String newPassword) {
+        UserCredential credential = credentialRepository.findByLoginId(id)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 ID입니다."));
+
+        User user = credential.getUser();
+
+        if (!user.getNickname().equals(nickname)) {
+            throw new IllegalArgumentException("닉네임이 일치하지 않습니다.");
+        }
+
+        String encoded = passwordEncoder.encode(newPassword);
+
+        // User 테이블 비밀번호 업데이트
+        user.setPassword(encoded);
+        userRepository.save(user);
+
+        // Credential 테이블 비밀번호 업데이트
+        credential.setPw(encoded);
+        credentialRepository.save(credential);
+    }
+
 }
+
