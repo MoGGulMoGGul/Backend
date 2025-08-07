@@ -58,5 +58,4 @@ public interface TipRepository extends JpaRepository<Tip, Long> {
     Optional<Tip> findByNoAndUser_No(Long tipNo, Long userNo);
     List<Tip> findAllByUser_No(Long userId);
     List<Tip> findAllByIsPublicTrue();
-    List<Tip> findAllByStorage_No(Long storageId);
 }

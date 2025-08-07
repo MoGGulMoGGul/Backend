@@ -27,7 +27,7 @@ public class TipQueryService {
 
     // 특정 보관함에 속한 팁 조회
     public List<Tip> getTipsByStorage(Long storageNo) {
-        return tipRepository.findAllByStorage_No(storageNo);
+        return tipRepository.findTipsByStorageId(storageNo);
     }
 
     // 상세 팁 조회

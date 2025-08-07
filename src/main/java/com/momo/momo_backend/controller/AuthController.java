@@ -59,7 +59,7 @@ public class AuthController {
         return ResponseEntity.ok(exists);
     }
 
-    // ✅ 회원탈퇴 (토큰 기반 유저 정보 사용)
+    // 회원탈퇴 (토큰 기반 유저 정보 사용)
     @DeleteMapping("/withdrawal")
     public ResponseEntity<Void> withdrawal(@AuthenticationPrincipal CustomUserDetails principal) {
         authService.withdraw(principal.getUser().getNo());

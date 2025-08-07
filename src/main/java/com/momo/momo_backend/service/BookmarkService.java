@@ -24,10 +24,6 @@ public class BookmarkService {
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;
 
-    /**
-     * ✅ 즐겨찾기 등록 (DTO 기반 - BookmarkRequest 사용)
-     * [출처: 첫 번째 코드]
-     */
     public Bookmark save(BookmarkRequest request) {
         if (bookmarkRepository.existsByUser_NoAndTip_No(request.getUserNo(), request.getTipNo())) {
             throw new IllegalArgumentException("이미 즐겨찾기한 꿀팁입니다.");
@@ -50,10 +46,6 @@ public class BookmarkService {
         return bookmark;
     }
 
-    /**
-     * ✅ 즐겨찾기 등록 (엔티티 기반 - 로그인 사용자 전달)
-     * [출처: 두 번째 코드]
-     */
     public void addBookmark(Long tipId, User user) {
         Tip tip = tipRepository.findById(tipId)
                 .orElseThrow(() -> new IllegalArgumentException("해당 꿀팁을 찾을 수 없습니다."));
@@ -70,10 +62,6 @@ public class BookmarkService {
         notifyTipOwnerOfBookmark(tip, user); // 알림 전송
     }
 
-    /**
-     * ✅ 즐겨찾기 삭제
-     * [출처: 첫 번째 코드]
-     */
     public void delete(Long bookmarkNo) {
         Bookmark bookmark = bookmarkRepository.findById(bookmarkNo)
                 .orElseThrow(() -> new IllegalArgumentException("즐겨찾기가 존재하지 않습니다."));
@@ -81,10 +69,6 @@ public class BookmarkService {
         bookmarkRepository.delete(bookmark);
     }
 
-    /**
-     * ✅ 즐겨찾기 알림 전송
-     * [출처: 두 번째 코드]
-     */
     private void notifyTipOwnerOfBookmark(Tip tip, User bookmarker) {
         User tipOwner = tip.getUser();
 

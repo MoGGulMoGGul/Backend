@@ -18,7 +18,6 @@ import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -54,37 +53,37 @@ public class TipService {
     // 전체 공개 팁 조회
     public List<TipResponse> getAllPublicTips() {
         return tipRepository.findAllByIsPublicTrueOrderByCreatedAtDesc()
-                .stream().map(TipResponse::fromEntity).toList();
+                .stream().map(TipResponse::from).toList();
     }
 
     // 유저별 팁 조회
     public List<TipResponse> getTipsByUser(Long userNo) {
         return tipRepository.findAllByUser_NoOrderByCreatedAtDesc(userNo)
-                .stream().map(TipResponse::fromEntity).toList();
+                .stream().map(TipResponse::from).toList();
     }
 
     // 그룹 보관함의 꿀팁 조회
     public List<TipResponse> getTipsByGroup(Long groupId) {
         return tipRepository.findTipsByGroupId(groupId)
-                .stream().map(TipResponse::fromEntity).toList();
+                .stream().map(TipResponse::from).toList();
     }
 
     // 사용자 보관함 꿀팁 조회
     public List<TipResponse> getTipsInUserStorage(Long userId) {
         return tipRepository.findTipsByUserStorage(userId)
-                .stream().map(TipResponse::fromEntity).toList();
+                .stream().map(TipResponse::from).toList();
     }
 
     // 태그 기반 검색
     public List<TipResponse> getTipsByTag(String tagName) {
         return tipRepository.findTipsByTagName(tagName)
-                .stream().map(TipResponse::fromEntity).toList();
+                .stream().map(TipResponse::from).toList();
     }
 
     // 특정 보관함의 꿀팁 조회
     public List<TipResponse> getTipsByStorage(Long storageId) {
         return tipRepository.findTipsByStorageId(storageId)
-                .stream().map(TipResponse::fromEntity).toList();
+                .stream().map(TipResponse::from).toList();
     }
 
     // 팁 등록 (FastAPI 서버에 요약 요청)

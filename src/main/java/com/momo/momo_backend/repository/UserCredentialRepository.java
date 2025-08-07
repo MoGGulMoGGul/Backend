@@ -10,7 +10,7 @@ import java.util.Optional;
 public interface UserCredentialRepository extends JpaRepository<UserCredential, Long> {
     Optional<UserCredential> findByLoginId(String loginId);   // 변경
 
-    /* 🔸 FK 기반 삭제 */
+    /* FK 기반 삭제 */
     @Modifying
     @Query("delete from UserCredential uc where uc.user.no = :userNo")
     void deleteByUser_No(Long userNo);

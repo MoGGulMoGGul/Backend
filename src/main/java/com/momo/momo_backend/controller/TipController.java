@@ -67,7 +67,7 @@ public class TipController {
         return ResponseEntity.ok(tips);
     }
 
-    // 🔹 내 꿀팁 조회 API
+    // 내 꿀팁 조회 API
     @GetMapping("/storage/my")
     public ResponseEntity<List<TipResponse>> getMyStorageTips(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
@@ -75,15 +75,15 @@ public class TipController {
                 tipService.getTipsInUserStorage(userDetails.getUser().getNo()));
     }
 
-    // ✅ 그룹 보관함의 꿀팁 조회
+    // 그룹 보관함의 꿀팁 조회
     @GetMapping("/group/{groupId}")
     public ResponseEntity<List<TipResponse>> getTipsByGroup(@PathVariable Long groupId) {
         List<TipResponse> tips = tipService.getTipsByGroup(groupId);
         return ResponseEntity.ok(tips);
-    } // ✅ 닫는 중괄호 추가
+    } // 닫는 중괄호 추가
 
 
-    // ✅ 태그 기반 검색
+    // 태그 기반 검색
     @GetMapping("/tag/{tagName}")
     public ResponseEntity<List<TipResponse>> getTipsByTag(@PathVariable String tagName){
         List<TipResponse> tips = tipService.getTipsByTag(tagName);

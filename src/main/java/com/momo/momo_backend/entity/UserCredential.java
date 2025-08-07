@@ -23,7 +23,7 @@ public class UserCredential {
     private User user; // 연결된 사용자 번호 (users.no)
 
     @Column(name = "id", nullable = false, length = 50)
-    private String id; // 사용자 로그인 ID
+    private String loginId; // 사용자 로그인 ID
 
     @Column(name = "pw", nullable = false, length = 255)
     private String pw; // 암호화된 비밀번호
