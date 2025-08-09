@@ -9,7 +9,8 @@ import java.util.List;
 
 // src/main/java/com/momo/momo_backend/entity/Group.java
 @Entity
-@Getter               // ← 추가!
+@Getter
+@Setter
 @Table(name = "groups")
 public class Group {
 
