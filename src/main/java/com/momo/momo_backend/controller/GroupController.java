@@ -60,36 +60,41 @@ public class GroupController {
         }
     }
 
-    // 그룹 멤버 초대 API
-    @PostMapping("/{groupId}/invite") // 엔드포인트 수정: /api/groups/{groupId}/invite
+    // 그룹 멤버 초대 API (여러 명 동시 초대 가능)
+    @PostMapping("/{groupId}/invite")
     public ResponseEntity<?> inviteGroupMember(
             @PathVariable Long groupId,
-            @RequestBody GroupInviteRequest request,
+            @RequestBody GroupInviteRequest request, // userIds 목록을 받음
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        log.info("그룹 멤버 초대 요청 - 그룹 ID: {}, 초대할 사용자 ID: {}, 초대하는 사용자: {}",
-                groupId, request.getUserId(), userDetails.getUsername());
+        log.info("그룹 멤버 초대 요청 - 그룹 ID: {}, 초대할 사용자 ID 목록: {}, 초대하는 사용자: {}",
+                groupId, request.getUserIds(), userDetails.getUsername()); // 로그 메시지 수정
         try {
-            Long inviterUserNo = userDetails.getUser().getNo(); // 초대하는 사용자 (로그인된 사용자)
-            groupService.inviteMember(groupId, request, inviterUserNo);
+            Long inviterUserNo = userDetails.getUser().getNo();
+            // inviteMembers 서비스 메서드 호출
+            List<String> results = groupService.inviteMembers(groupId, request, inviterUserNo);
 
-            MessageResponse response = MessageResponse.builder()
-                    .message("그룹 멤버 초대 완료!")
-                    .build();
-
-            log.info("그룹 멤버 초대 성공 - 그룹 ID: {}, 초대된 사용자 ID: {}", groupId, request.getUserId());
-            return ResponseEntity.ok(response); // 200 OK 응답
+            // 초대 결과 목록을 응답으로 반환
+            return ResponseEntity.ok(results); // 200 OK 응답
         } catch (IllegalArgumentException e) {
             log.error("그룹 멤버 초대 실패: {}", e.getMessage());
             ErrorResponse errorResponse = ErrorResponse.builder()
-                    .status(HttpStatus.BAD_REQUEST.value()) // 400 Bad Request
+                    .status(HttpStatus.BAD_REQUEST.value())
                     .message(e.getMessage())
                     .error(e.getClass().getSimpleName())
                     .build();
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        } catch (AccessDeniedException e) {
+            log.error("그룹 멤버 초대 권한 없음: {}", e.getMessage());
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .status(HttpStatus.FORBIDDEN.value())
+                    .message(e.getMessage())
+                    .error(e.getClass().getSimpleName())
+                    .build();
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
         } catch (Exception e) {
             log.error("그룹 멤버 초대 중 예상치 못한 오류 발생: {}", e.getMessage(), e);
             ErrorResponse errorResponse = ErrorResponse.builder()
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR.value()) // 500 Internal Server Error
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
                     .message("그룹 멤버 초대 중 오류가 발생했습니다.")
                     .error(e.getClass().getSimpleName())
                     .build();
@@ -132,7 +137,6 @@ public class GroupController {
         }
     }
 
-    // 그룹 멤버 조회 API
     // 그룹 멤버 조회 API
     @GetMapping("/{groupId}/members")
     public ResponseEntity<?> getGroupMembers(
@@ -201,6 +205,51 @@ public class GroupController {
             ErrorResponse errorResponse = ErrorResponse.builder()
                     .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
                     .message("그룹 목록 조회 중 오류가 발생했습니다.")
+                    .error(e.getClass().getSimpleName())
+                    .build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
+    // 그룹명 수정 API
+    @PutMapping("/{groupId}/name") // 엔드포인트: /api/groups/{groupId}/name
+    public ResponseEntity<?> updateGroupName(
+            @PathVariable Long groupId,
+            @RequestBody GroupUpdateRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        log.info("그룹명 수정 요청 - 그룹 ID: {}, 새 그룹명: {}, 요청 사용자: {}",
+                groupId, request.getName(), userDetails.getUsername());
+        try {
+            Long requestingUserNo = userDetails.getUser().getNo();
+            Group updatedGroup = groupService.updateGroupName(groupId, request, requestingUserNo);
+
+            MessageResponse response = MessageResponse.builder()
+                    .message("그룹명이 성공적으로 수정되었습니다: " + updatedGroup.getName())
+                    .build();
+
+            log.info("그룹명 수정 성공 - 그룹 ID: {}, 새 그룹명: {}", groupId, updatedGroup.getName());
+            return ResponseEntity.ok(response); // 200 OK 응답
+        } catch (IllegalArgumentException e) {
+            log.error("그룹명 수정 실패: {}", e.getMessage());
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .status(HttpStatus.BAD_REQUEST.value())
+                    .message(e.getMessage())
+                    .error(e.getClass().getSimpleName())
+                    .build();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        } catch (AccessDeniedException e) {
+            log.error("그룹명 수정 권한 없음: {}", e.getMessage());
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .status(HttpStatus.FORBIDDEN.value())
+                    .message(e.getMessage())
+                    .error(e.getClass().getSimpleName())
+                    .build();
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
+        } catch (Exception e) {
+            log.error("그룹명 수정 중 예상치 못한 오류 발생: {}", e.getMessage(), e);
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .message("그룹명 수정 중 오류가 발생했습니다.")
                     .error(e.getClass().getSimpleName())
                     .build();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);

@@ -1,15 +1,15 @@
 package com.momo.momo_backend.controller;
 
-import com.momo.momo_backend.dto.TipRegisterRequest;
-import com.momo.momo_backend.dto.TipRequest;
-import com.momo.momo_backend.dto.TipResponse;
-import com.momo.momo_backend.dto.TipUpdateRequest;
+import com.momo.momo_backend.dto.*;
 import com.momo.momo_backend.entity.Tip;
 import com.momo.momo_backend.security.CustomUserDetails;
 import com.momo.momo_backend.service.TipService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,16 +18,46 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/tips")
 @RequiredArgsConstructor
+@Slf4j
 public class TipController {
 
     private final TipService tipService;
 
     // 팁 생성
     @PostMapping("/generate")
-    public ResponseEntity<Tip> generateTip(@RequestBody TipRequest tipRequest,
-                                           @RequestParam Long userId) {
-        Tip tip = tipService.createTip(userId, tipRequest);
-        return ResponseEntity.ok(tip);
+    public ResponseEntity<?> generateTip(@RequestBody TipRequest tipRequest, // 반환 타입을 ResponseEntity<?>로 변경
+                                         @AuthenticationPrincipal CustomUserDetails userDetails) {
+        log.info("꿀팁 생성 요청 - 사용자: {}, 보관함 ID: {}", userDetails.getUsername(), tipRequest.getStorageId());
+        try {
+            Long userNo = userDetails.getUser().getNo();
+            TipResponse tipResponse = tipService.createTip(userNo, tipRequest);
+            log.info("꿀팁 생성 성공 - 꿀팁 ID: {}", tipResponse.getNo());
+            return ResponseEntity.ok(tipResponse);
+        } catch (IllegalArgumentException e) {
+            log.error("꿀팁 생성 실패: {}", e.getMessage());
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .status(HttpStatus.BAD_REQUEST.value()) // 400 Bad Request
+                    .message(e.getMessage())
+                    .error(e.getClass().getSimpleName())
+                    .build();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        } catch (AccessDeniedException e) { // ✨ AccessDeniedException 처리 추가
+            log.error("꿀팁 생성 권한 없음: {}", e.getMessage());
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .status(HttpStatus.FORBIDDEN.value()) // 403 Forbidden
+                    .message(e.getMessage())
+                    .error(e.getClass().getSimpleName())
+                    .build();
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
+        } catch (Exception e) {
+            log.error("꿀팁 생성 중 예상치 못한 오류 발생: {}", e.getMessage(), e);
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR.value()) // 500 Internal Server Error
+                    .message("꿀팁 생성 중 오류가 발생했습니다.")
+                    .error(e.getClass().getSimpleName())
+                    .build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
     }
 
     // 팁 등록

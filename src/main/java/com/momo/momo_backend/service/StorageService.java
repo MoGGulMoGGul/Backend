@@ -5,6 +5,7 @@ import com.momo.momo_backend.dto.StorageUpdateRequest;
 import com.momo.momo_backend.entity.Storage;
 import com.momo.momo_backend.entity.User;
 import com.momo.momo_backend.entity.Group;
+import com.momo.momo_backend.repository.GroupMemberRepository;
 import com.momo.momo_backend.repository.GroupRepository;
 import com.momo.momo_backend.repository.StorageRepository;
 import com.momo.momo_backend.repository.UserRepository;
@@ -22,6 +23,7 @@ public class StorageService {
     private final StorageRepository storageRepository;
     private final UserRepository userRepository;
     private final GroupRepository groupRepository;
+    private final GroupMemberRepository groupMemberRepository;
 
     // 보관함 생성
     public Storage create(StorageCreateRequest request, Long loginUserNo) {
@@ -35,10 +37,16 @@ public class StorageService {
                 .updatedAt(LocalDateTime.now())
                 .build();
 
-        // 그룹 정보가 있는 경우에만 설정
+        // 그룹 정보가 있는 경우에만 설정 및 권한 확인
         if (request.getGroupNo() != null) {
             Group group = groupRepository.findById(request.getGroupNo())
                     .orElseThrow(() -> new IllegalArgumentException("그룹이 존재하지 않습니다."));
+
+            // 현재 로그인한 사용자가 해당 그룹의 멤버인지 확인
+            boolean isMember = groupMemberRepository.existsByGroupAndUser(group, user);
+            if (!isMember) {
+                throw new AccessDeniedException("그룹 보관함은 해당 그룹의 멤버만 생성할 수 있습니다.");
+            }
             storage.setGroup(group);
         }
 
@@ -46,20 +54,27 @@ public class StorageService {
     }
 
     // 보관함 수정
-    @Transactional // 트랜잭션 관리
+    @Transactional
     public Storage update(Long storageNo, Long loginUserNo, StorageUpdateRequest request) {
-        // 보관함이 존재하는지 확인
         Storage storage = storageRepository.findById(storageNo)
                 .orElseThrow(() -> new IllegalArgumentException("보관함이 존재하지 않습니다."));
 
-        // 로그인한 사용자가 보관함의 소유자인지 확인하여 수정 권한 검사
-        if (!storage.getUser().getNo().equals(loginUserNo)) {
-            throw new AccessDeniedException("해당 보관함에 대한 수정 권한이 없습니다.");
+        User loginUser = userRepository.findById(loginUserNo)
+                .orElseThrow(() -> new IllegalArgumentException("사용자가 존재하지 않습니다."));
+
+        // 그룹 보관함인 경우와 개인 보관함인 경우를 나누어 권한 확인
+        if (storage.getGroup() != null) { // 그룹 보관함인 경우
+            boolean isGroupMember = groupMemberRepository.existsByGroupAndUser(storage.getGroup(), loginUser);
+            if (!isGroupMember) {
+                throw new AccessDeniedException("그룹 보관함은 해당 그룹의 멤버만 수정할 수 있습니다.");
+            }
+        } else { // 개인 보관함인 경우
+            if (!storage.getUser().getNo().equals(loginUserNo)) {
+                throw new AccessDeniedException("개인 보관함은 소유자만 수정할 수 있습니다.");
+            }
         }
 
-        // 요청에서 받은 이름으로 보관함 이름 업데이트
         storage.setName(request.getName());
-        // 업데이트된 보관함 엔티티 저장 및 반환
         return storageRepository.save(storage);
     }
 
@@ -67,9 +82,22 @@ public class StorageService {
     public void delete(Long storageNo, Long loginUserNo) {
         Storage storage = storageRepository.findById(storageNo)
                 .orElseThrow(() -> new IllegalArgumentException("보관함이 존재하지 않습니다."));
-        if (!storage.getUser().getNo().equals(loginUserNo)) {
-            throw new AccessDeniedException("해당 보관함에 대한 삭제 권한이 없습니다.");
+
+        User loginUser = userRepository.findById(loginUserNo)
+                .orElseThrow(() -> new IllegalArgumentException("사용자가 존재하지 않습니다."));
+
+        // 그룹 보관함인 경우와 개인 보관함인 경우를 나누어 권한 확인
+        if (storage.getGroup() != null) { // 그룹 보관함인 경우
+            boolean isGroupMember = groupMemberRepository.existsByGroupAndUser(storage.getGroup(), loginUser);
+            if (!isGroupMember) {
+                throw new AccessDeniedException("그룹 보관함은 해당 그룹의 멤버만 삭제할 수 있습니다.");
+            }
+        } else { // 개인 보관함인 경우
+            if (!storage.getUser().getNo().equals(loginUserNo)) {
+                throw new AccessDeniedException("개인 보관함은 소유자만 삭제할 수 있습니다.");
+            }
         }
+
         storageRepository.delete(storage);
     }
 }

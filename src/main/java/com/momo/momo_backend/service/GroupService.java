@@ -3,6 +3,7 @@ package com.momo.momo_backend.service;
 import com.momo.momo_backend.dto.GroupCreateRequest;
 import com.momo.momo_backend.dto.GroupInviteRequest;
 import com.momo.momo_backend.dto.GroupListResponse;
+import com.momo.momo_backend.dto.GroupUpdateRequest;
 import com.momo.momo_backend.entity.Group;
 import com.momo.momo_backend.entity.GroupMember; // GroupMember 임포트
 import com.momo.momo_backend.entity.User; // User 임포트
@@ -14,6 +15,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional; // Transactional 임포트
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -54,38 +56,45 @@ public class GroupService {
     }
 
     // 그룹에 사용자 초대
-    @Transactional // 트랜잭션 관리
-    public void inviteMember(Long groupId, GroupInviteRequest request, Long inviterUserNo) {
+    @Transactional // 반환 타입을 List<String>으로 변경하여 각 초대 결과를 반환
+    public List<String> inviteMembers(Long groupId, GroupInviteRequest request, Long inviterUserNo) {
         // 1. 그룹 존재 여부 확인
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new IllegalArgumentException("그룹이 존재하지 않습니다."));
 
-        // 2. 초대할 사용자 존재 여부 확인
-        User invitedUser = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> new IllegalArgumentException("초대할 사용자가 존재하지 않습니다."));
+        // 2. 초대하는 사용자가 그룹 멤버인지 확인
+        User inviter = userRepository.findById(inviterUserNo)
+                .orElseThrow(() -> new IllegalArgumentException("초대하는 사용자가 존재하지 않습니다."));
 
-        // 3. 초대하는 사용자가 그룹 멤버인지 확인 (선택 사항: 그룹 관리자만 초대 가능하도록 할 수도 있음)
-        // 현재는 그룹에 속한 아무 멤버나 초대할 수 있다고 가정합니다.
-        boolean inviterIsMember = groupMemberRepository.existsByGroupAndUser(group, userRepository.findById(inviterUserNo)
-                .orElseThrow(() -> new IllegalArgumentException("초대하는 사용자가 존재하지 않습니다.")));
+        boolean inviterIsMember = groupMemberRepository.existsByGroupAndUser(group, inviter);
         if (!inviterIsMember) {
-            throw new IllegalArgumentException("그룹 멤버만 다른 사용자를 초대할 수 있습니다.");
+            throw new AccessDeniedException("그룹 멤버만 다른 사용자를 초대할 수 있습니다.");
         }
 
-        // 4. 초대할 사용자가 이미 그룹 멤버인지 확인
-        if (groupMemberRepository.existsByGroupAndUser(group, invitedUser)) {
-            throw new IllegalArgumentException("해당 사용자는 이미 그룹의 멤버입니다.");
+        List<String> results = new ArrayList<>();
+        // 여러 사용자 ID를 반복하며 초대 로직 수행
+        for (Long userId : request.getUserIds()) {
+            try {
+                User invitedUser = userRepository.findById(userId)
+                        .orElseThrow(() -> new IllegalArgumentException("사용자 ID " + userId + "를 찾을 수 없습니다."));
+
+                if (groupMemberRepository.existsByGroupAndUser(group, invitedUser)) {
+                    results.add("사용자 ID " + userId + "는 이미 그룹의 멤버입니다.");
+                } else {
+                    GroupMember newMember = GroupMember.builder()
+                            .group(group)
+                            .user(invitedUser)
+                            .build();
+                    groupMemberRepository.save(newMember);
+                    results.add("사용자 ID " + userId + "가 그룹에 성공적으로 초대되었습니다.");
+                }
+            } catch (IllegalArgumentException e) {
+                results.add("사용자 ID " + userId + " 초대 실패: " + e.getMessage());
+            } catch (Exception e) {
+                results.add("사용자 ID " + userId + " 초대 중 알 수 없는 오류 발생: " + e.getMessage());
+            }
         }
-
-        // 5. GroupMember 엔티티 생성 및 저장
-        GroupMember newMember = GroupMember.builder()
-                .group(group)
-                .user(invitedUser)
-                .build(); // joinedAt은 @Builder.Default로 자동 설정됨
-        groupMemberRepository.save(newMember);
-
-        // TODO: 알림 기능 추가 (선택 사항)
-        // NotificationService.sendGroupInviteNotification(invitedUser, group, inviterUser);
+        return results;
     }
 
     // 그룹 멤버 나가기
@@ -154,5 +163,27 @@ public class GroupService {
                             .build();
                 })
                 .collect(Collectors.toList());
+    }
+
+    // 그룹명 수정
+    @Transactional
+    public Group updateGroupName(Long groupId, GroupUpdateRequest request, Long requestingUserNo) {
+        // 1. 그룹 존재 여부 확인
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new IllegalArgumentException("그룹이 존재하지 않습니다."));
+
+        // 2. 요청하는 사용자 존재 여부 확인
+        User requestingUser = userRepository.findById(requestingUserNo)
+                .orElseThrow(() -> new IllegalArgumentException("요청하는 사용자가 존재하지 않습니다."));
+
+        // 3. 요청하는 사용자가 해당 그룹의 멤버인지 확인
+        boolean isMember = groupMemberRepository.existsByGroupAndUser(group, requestingUser);
+        if (!isMember) {
+            throw new AccessDeniedException("그룹 멤버만 그룹명을 수정할 수 있습니다.");
+        }
+
+        // 4. 그룹명 업데이트
+        group.setName(request.getName());
+        return groupRepository.save(group);
     }
 }
