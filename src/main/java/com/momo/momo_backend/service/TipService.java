@@ -30,14 +30,29 @@ public class TipService {
     private final StorageRepository storageRepository;
     private final FollowRepository followRepository;
     private final NotificationRepository notificationRepository;
+    private final StorageTipRepository storageTipRepository;
+    private final GroupMemberRepository groupMemberRepository; // 그룹 멤버 리포지토리 추가
 
     // 팁 생성
-    public Tip createTip(Long userNo, TipRequest request) {
+    public TipResponse createTip(Long userNo, TipRequest request) {
         User user = userRepository.findById(userNo)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
 
         Storage storage = storageRepository.findById(request.getStorageId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 보관함입니다."));
+
+        // 보관함 소유권 검증
+        if (!storage.getUser().getNo().equals(userNo)) {
+            throw new AccessDeniedException("선택한 보관함은 현재 로그인한 사용자의 소유가 아닙니다.");
+        }
+        // 그룹 보관함인 경우에도 그룹 멤버만 생성할 수 있도록 추가 검증 (StorageService의 create와 유사하게)
+        if (storage.getGroup() != null) {
+             boolean isGroupMember = groupMemberRepository.existsByGroupAndUser(storage.getGroup(), user);
+             if (!isGroupMember) {
+                 throw new AccessDeniedException("그룹 보관함에 꿀팁을 생성하려면 해당 그룹의 멤버여야 합니다.");
+             }
+        }
+
 
         Tip tip = new Tip();
         tip.setUser(user);
@@ -47,7 +62,37 @@ public class TipService {
         tip.setCreatedAt(LocalDateTime.now());
         tip.setUpdatedAt(LocalDateTime.now());
 
-        return tipRepository.save(tip);
+        Tip savedTip = tipRepository.save(tip); // 팁 저장
+
+        // StorageTip 엔티티 생성 및 저장
+        StorageTip storageTip = StorageTip.builder()
+                .tip(savedTip)
+                .storage(storage)
+                .build();
+        storageTipRepository.save(storageTip); // StorageTip 저장
+
+        // 태그 처리 로직 추가
+        if (request.getTags() != null && !request.getTags().isEmpty()) {
+            Set<String> uniqueTagNames = new LinkedHashSet<>(request.getTags());
+
+            for (String tagName : uniqueTagNames) {
+                Tag tag = tagRepository.findByName(tagName)
+                        .orElseGet(() -> tagRepository.save(Tag.builder().name(tagName).build()));
+
+                TipTag tipTag = TipTag.builder()
+                        .tip(savedTip)
+                        .tag(tag)
+                        .build();
+                tipTagRepository.save(tipTag); // 명시적으로 저장
+                savedTip.getTipTags().add(tipTag);
+            }
+        }
+
+        // 알림 전송 로직
+        notifyFollowers(savedTip);
+        notifyGroupMembers(savedTip);
+
+        return TipResponse.from(savedTip);
     }
 
     // 전체 공개 팁 조회
