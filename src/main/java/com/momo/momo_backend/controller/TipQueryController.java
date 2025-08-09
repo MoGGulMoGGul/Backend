@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/query")
+@RequestMapping("/api/query/tips")
 @RequiredArgsConstructor
 public class TipQueryController {
 

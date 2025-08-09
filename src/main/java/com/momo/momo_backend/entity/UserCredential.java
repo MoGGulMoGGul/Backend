@@ -1,5 +1,6 @@
 package com.momo.momo_backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -20,6 +21,7 @@ public class UserCredential {
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_no", nullable = false)
+    @JsonIgnore
     private User user; // 연결된 사용자 번호 (users.no)
 
     @Column(name = "id", nullable = false, length = 50)
