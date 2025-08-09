@@ -26,6 +26,7 @@ public class GroupMember {
     @JoinColumn(name = "group_no", nullable = false)
     private Group group;
 
+    @Builder.Default
     @Column(name = "joined_at", nullable = false)
     private LocalDateTime joinedAt = LocalDateTime.now();
 }
