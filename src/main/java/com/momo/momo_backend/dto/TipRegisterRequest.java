@@ -1,8 +1,13 @@
 package com.momo.momo_backend.dto;
 
 import lombok.Getter;
+import lombok.Setter;
+
 
 @Getter
+@Setter
 public class TipRegisterRequest {
-    private Long tipId;
+    private Long tipId; // 생성 단계에서 받은 꿀팁 ID
+    private Boolean isPublic; // 공개 여부
+    private Long storageId;   // 보관함 ID
 }

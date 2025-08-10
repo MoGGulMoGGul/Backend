@@ -18,6 +18,7 @@ public class TipResponse {
     private String contentSummary;     // 꿀팁 요약
     private String url;                // 원본 URL
     private String nickname;           // 작성자 닉네임
+    private String thumbnailUrl;       // 썸네일 URL
     private Boolean isPublic;          // 공개 여부
     private List<String> tags;         // 태그 리스트
     private LocalDateTime createdAt;   // 생성일
@@ -30,6 +31,7 @@ public class TipResponse {
                 .contentSummary(tip.getContentSummary())
                 .url(tip.getUrl())
                 .nickname(tip.getUser().getNickname())
+                .thumbnailUrl(tip.getThumbnailUrl())
                 .isPublic(tip.getIsPublic())
                 .tags(tip.getTipTags().stream()
                         .map(TipTag::getTag)

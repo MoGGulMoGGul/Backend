@@ -1,5 +1,6 @@
 package com.momo.momo_backend.service;
 
+import com.momo.momo_backend.dto.TipRegisterRequest;
 import com.momo.momo_backend.dto.TipRequest;
 import com.momo.momo_backend.dto.TipResponse;
 import com.momo.momo_backend.dto.TipUpdateRequest;
@@ -8,6 +9,7 @@ import com.momo.momo_backend.enums.NotificationType;
 import com.momo.momo_backend.repository.*;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -15,12 +17,16 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.http.HttpStatus;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TipService {
 
     private final TipRepository tipRepository;
@@ -33,45 +39,40 @@ public class TipService {
     private final StorageTipRepository storageTipRepository;
     private final GroupMemberRepository groupMemberRepository; // 그룹 멤버 리포지토리 추가
 
-    // 팁 생성
+    // 꿀팁 생성 (AI 요약 요청 및 임시 팁 저장)
+    @Transactional
     public TipResponse createTip(Long userNo, TipRequest request) {
         User user = userRepository.findById(userNo)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
 
-        Storage storage = storageRepository.findById(request.getStorageId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 보관함입니다."));
-
-        // 보관함 소유권 검증
-        if (!storage.getUser().getNo().equals(userNo)) {
-            throw new AccessDeniedException("선택한 보관함은 현재 로그인한 사용자의 소유가 아닙니다.");
-        }
-        // 그룹 보관함인 경우에도 그룹 멤버만 생성할 수 있도록 추가 검증 (StorageService의 create와 유사하게)
-        if (storage.getGroup() != null) {
-             boolean isGroupMember = groupMemberRepository.existsByGroupAndUser(storage.getGroup(), user);
-             if (!isGroupMember) {
-                 throw new AccessDeniedException("그룹 보관함에 꿀팁을 생성하려면 해당 그룹의 멤버여야 합니다.");
-             }
-        }
-
-
         Tip tip = new Tip();
         tip.setUser(user);
         tip.setUrl(request.getUrl());
-        tip.setTitle(request.getTitle());
-        tip.setIsPublic(request.getIsPublic());
+        tip.setTitle(request.getTitle()); // 사용자가 입력한 제목
+        tip.setIsPublic(false); // 생성 단계에서는 기본적으로 비공개 (등록 단계에서 설정)
         tip.setCreatedAt(LocalDateTime.now());
         tip.setUpdatedAt(LocalDateTime.now());
 
-        Tip savedTip = tipRepository.save(tip); // 팁 저장
+        // AI 요약 요청 (FastAPI 서버 호출)
+        RestTemplate restTemplate = new RestTemplate();
+        String pythonUrl = "http://localhost:8000/async-index/"; // FastAPI 서버 URL
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
 
-        // StorageTip 엔티티 생성 및 저장
-        StorageTip storageTip = StorageTip.builder()
-                .tip(savedTip)
-                .storage(storage)
-                .build();
-        storageTipRepository.save(storageTip); // StorageTip 저장
+        Map<String, String> pythonRequest = Map.of("url", request.getUrl());
+        HttpEntity<Map<String, String>> entity = new HttpEntity<>(pythonRequest, headers);
 
-        // 태그 처리 로직 추가
+        try {
+            ResponseEntity<Map> pythonResponse = restTemplate.postForEntity(pythonUrl, entity, Map.class);
+            String taskId = (String) pythonResponse.getBody().get("task_id");
+            tip.setContentSummary("요약 생성 중... (taskId: " + taskId + ")"); // 요약 대기 상태
+        } catch (Exception e) {
+            tip.setContentSummary("요약 실패: " + e.getMessage()); // 요약 실패 처리
+        }
+
+        Tip savedTip = tipRepository.save(tip); // 임시 팁 저장
+
+        // 태그 처리 로직 (생성 단계에서 태그를 받았다면 저장)
         if (request.getTags() != null && !request.getTags().isEmpty()) {
             Set<String> uniqueTagNames = new LinkedHashSet<>(request.getTags());
 
@@ -83,80 +84,162 @@ public class TipService {
                         .tip(savedTip)
                         .tag(tag)
                         .build();
-                tipTagRepository.save(tipTag); // 명시적으로 저장
+                tipTagRepository.save(tipTag);
                 savedTip.getTipTags().add(tipTag);
             }
         }
 
-        // 알림 전송 로직
-        notifyFollowers(savedTip);
-        notifyGroupMembers(savedTip);
-
-        return TipResponse.from(savedTip);
+        return TipResponse.from(savedTip); // 생성된 팁의 기본 정보 반환
     }
 
-    // 전체 공개 팁 조회
-    public List<TipResponse> getAllPublicTips() {
-        return tipRepository.findAllByIsPublicTrueOrderByCreatedAtDesc()
-                .stream().map(TipResponse::from).toList();
-    }
+    // 꿀팁 등록 (생성된 팁을 최종 보관함에 연결 및 공개 여부 설정)
+    @Transactional
+    public TipResponse registerTip(TipRegisterRequest request, Long userNo) {
+        Tip tip = tipRepository.findById(request.getTipId())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 팁입니다."));
 
-    // 유저별 팁 조회
-    public List<TipResponse> getTipsByUser(Long userNo) {
-        return tipRepository.findAllByUser_NoOrderByCreatedAtDesc(userNo)
-                .stream().map(TipResponse::from).toList();
-    }
-
-    // 그룹 보관함의 꿀팁 조회
-    public List<TipResponse> getTipsByGroup(Long groupId) {
-        return tipRepository.findTipsByGroupId(groupId)
-                .stream().map(TipResponse::from).toList();
-    }
-
-    // 사용자 보관함 꿀팁 조회
-    public List<TipResponse> getTipsInUserStorage(Long userId) {
-        return tipRepository.findTipsByUserStorage(userId)
-                .stream().map(TipResponse::from).toList();
-    }
-
-    // 태그 기반 검색
-    public List<TipResponse> getTipsByTag(String tagName) {
-        return tipRepository.findTipsByTagName(tagName)
-                .stream().map(TipResponse::from).toList();
-    }
-
-    // 특정 보관함의 꿀팁 조회
-    public List<TipResponse> getTipsByStorage(Long storageId) {
-        return tipRepository.findTipsByStorageId(storageId)
-                .stream().map(TipResponse::from).toList();
-    }
-
-    // 팁 등록 (FastAPI 서버에 요약 요청)
-    public Tip registerTip(Long tipId) {
-        Tip tip = tipRepository.findById(tipId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 tip입니다."));
-
-        RestTemplate restTemplate = new RestTemplate();
-        String pythonUrl = "http://localhost:8000/async-index/";
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-
-        Map<String, String> request = Map.of("url", tip.getUrl());
-        HttpEntity<Map<String, String>> entity = new HttpEntity<>(request, headers);
-
-        try {
-            ResponseEntity<Map> response = restTemplate.postForEntity(pythonUrl, entity, Map.class);
-            String taskId = (String) response.getBody().get("task_id");
-
-            tip.setContentSummary("요약 생성 중... (taskId: " + taskId + ")");
-            tip.setUpdatedAt(LocalDateTime.now());
-            return tipRepository.save(tip);
-        } catch (Exception e) {
-            throw new RuntimeException("FastAPI 요약 처리 요청 실패", e);
+        // 팁 소유권 검증
+        if (!tip.getUser().getNo().equals(userNo)) {
+            throw new AccessDeniedException("해당 팁에 대한 등록 권한이 없습니다.");
         }
+
+        // FastAPI 요약 결과 확인 및 업데이트 (재시도 로직 포함)
+        if (tip.getContentSummary() != null && tip.getContentSummary().startsWith("요약 생성 중... (taskId:")) {
+            String taskId = extractTaskId(tip.getContentSummary());
+            if (taskId != null) {
+                RestTemplate restTemplate = new RestTemplate();
+                String summaryResultUrl = "http://localhost:8000/summary-result/" + taskId;
+                int maxRetries = 5; // 최대 재시도 횟수
+                long retryDelayMs = 2000; // 재시도 간 지연 시간 (2초)
+
+                for (int i = 0; i < maxRetries; i++) {
+                    try {
+                        ResponseEntity<Map> summaryResponse = restTemplate.getForEntity(summaryResultUrl, Map.class);
+
+                        // 요약, 제목, 태그, 썸네일 모두 가져옴
+                        String finalSummary = (String) summaryResponse.getBody().get("summary");
+                        String finalTitle = (String) summaryResponse.getBody().get("title");
+                        List<String> finalTags = (List<String>) summaryResponse.getBody().get("tags");
+                        String thumbnailData = (String) summaryResponse.getBody().get("thumbnail_data");
+                        String thumbnailType = (String) summaryResponse.getBody().get("thumbnail_type");
+
+                        if (finalSummary != null && !finalSummary.isEmpty()) {
+                            tip.setContentSummary(finalSummary); // 최종 요약으로 업데이트
+
+                            // 사용자가 제목을 입력하지 않았을 경우에만 AI 제목으로 업데이트
+                            if (tip.getTitle() == null || tip.getTitle().isEmpty()) {
+                                if (finalTitle != null && !finalTitle.isEmpty()) {
+                                    tip.setTitle(finalTitle);
+                                }
+                            }
+
+                            // 사용자가 태그를 입력하지 않았을 경우에만 AI 태그로 업데이트
+                            if (tip.getTipTags().isEmpty()) { // 팁에 연결된 태그가 없는 경우
+                                if (finalTags != null && !finalTags.isEmpty()) {
+                                    // 기존 태그 삭제 후 새로운 태그 추가 (이 경우 기존 태그가 없으므로 삭제는 불필요)
+                                    // tipTagRepository.deleteByTipNo(tip.getNo()); // 주석 처리 또는 제거
+                                    // tip.getTipTags().clear(); // 주석 처리 또는 제거
+
+                                    for (String tagName : finalTags) {
+                                        Tag tag = tagRepository.findByName(tagName)
+                                                .orElseGet(() -> tagRepository.save(Tag.builder().name(tagName).build()));
+                                        TipTag tipTag = TipTag.builder().tip(tip).tag(tag).build();
+                                        tipTagRepository.save(tipTag);
+                                        tip.getTipTags().add(tipTag);
+                                    }
+                                }
+                            }
+
+                            // 썸네일 URL 업데이트
+                            if (thumbnailData != null) {
+                                if ("image".equals(thumbnailType)) {
+                                    tip.setThumbnailUrl("data:image/png;base64," + thumbnailData);
+                                } else if ("redirect".equals(thumbnailType)) {
+                                    tip.setThumbnailUrl(thumbnailData);
+                                }
+                            }
+                            break; // 성공했으므로 루프 종료
+                        } else {
+                            tip.setContentSummary("요약 내용이 아직 준비되지 않았거나 비어 있습니다.");
+                            break;
+                        }
+                    } catch (HttpClientErrorException e) {
+                        if (e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
+                            try {
+                                Thread.sleep(retryDelayMs * (i + 1));
+                            } catch (InterruptedException ie) {
+                                Thread.currentThread().interrupt();
+                                tip.setContentSummary("요약 조회 중단: " + ie.getMessage());
+                                break;
+                            }
+                        } else if (e.getStatusCode() == HttpStatus.ACCEPTED) {
+                            try {
+                                Thread.sleep(retryDelayMs);
+                            } catch (InterruptedException ie) {
+                                Thread.currentThread().interrupt();
+                                tip.setContentSummary("요약 조회 중단: " + ie.getMessage());
+                                break;
+                            }
+                        } else {
+                            tip.setContentSummary("요약 조회 실패: " + e.getMessage());
+                            break;
+                        }
+                    } catch (Exception e) {
+                        tip.setContentSummary("요약 조회 실패: " + e.getMessage());
+                        break;
+                    }
+                }
+            }
+        }
+
+
+        Storage storage = storageRepository.findById(request.getStorageId())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 보관함입니다."));
+
+        // 보관함 소유권 검증 (개인 보관함 또는 그룹 보관함 멤버 확인)
+        if (storage.getGroup() != null) { // 그룹 보관함
+            boolean isGroupMember = groupMemberRepository.existsByGroupAndUser(storage.getGroup(), tip.getUser());
+            if (!isGroupMember) {
+                throw new AccessDeniedException("그룹 보관함에 팁을 등록하려면 해당 그룹의 멤버여야 합니다.");
+            }
+        } else { // 개인 보관함
+            if (!storage.getUser().getNo().equals(userNo)) {
+                throw new AccessDeniedException("선택한 보관함은 현재 로그인한 사용자의 소유가 아닙니다.");
+            }
+        }
+
+        // StorageTip 엔티티 생성 및 저장
+        StorageTip storageTip = StorageTip.builder()
+                .tip(tip)
+                .storage(storage)
+                .build();
+        storageTipRepository.save(storageTip);
+
+        // 꿀팁의 공개 여부 및 업데이트 시간 설정
+        tip.setIsPublic(request.getIsPublic());
+        tip.setUpdatedAt(LocalDateTime.now());
+        Tip updatedTip = tipRepository.save(tip); // 팁 업데이트
+
+        // 알림 전송 (팁이 최종 등록될 때)
+        notifyFollowers(updatedTip);
+        notifyGroupMembers(updatedTip);
+
+        return TipResponse.from(updatedTip);
     }
+
+    // taskId를 contentSummary에서 추출하는 헬퍼 메서드
+    private String extractTaskId(String contentSummary) {
+        int startIndex = contentSummary.indexOf("taskId:") + "taskId:".length();
+        int endIndex = contentSummary.indexOf(")", startIndex);
+        if (startIndex > -1 && endIndex > -1 && startIndex < endIndex) {
+            return contentSummary.substring(startIndex, endIndex).trim();
+        }
+        return null;
+    }
+
 
     // 팁 수정
+    @Transactional
     public TipResponse update(Long tipNo, Long userNo, TipUpdateRequest req) {
         Tip tip = tipRepository.findByNoAndUser_No(tipNo, userNo)
                 .orElseThrow(() -> new AccessDeniedException("수정 권한이 없습니다."));
@@ -181,6 +264,53 @@ public class TipService {
 
         return TipResponse.from(tip);
     }
+
+    // 스케줄러에서 호출될, 오래된 미등록 꿀팁 삭제 메서드
+    @Transactional
+    public void deleteOldUnregisteredTips() {
+        // 현재 시간으로부터 24시간 이전의 시간을 기준으로 설정
+        LocalDateTime cutoffTime = LocalDateTime.now().minusHours(24);
+        log.info("오래된 미등록 꿀팁 삭제 작업 시작. 기준 시간: {}", cutoffTime);
+
+        List<Tip> oldUnregisteredTips = tipRepository.findUnregisteredTipsOlderThan(cutoffTime);
+
+        if (oldUnregisteredTips.isEmpty()) {
+            log.info("삭제할 오래된 미등록 꿀팁이 없습니다.");
+            return;
+        }
+
+        // 삭제할 꿀팁들의 ID 로깅
+        List<Long> tipNosToDelete = oldUnregisteredTips.stream()
+                .map(Tip::getNo)
+                .collect(Collectors.toList());
+        log.info("삭제될 오래된 미등록 꿀팁 ID 목록: {}", tipNosToDelete);
+
+        // 일괄 삭제 (TipTag 등 연관된 엔티티도 CascadeType.ALL에 의해 함께 삭제됨)
+        tipRepository.deleteAll(oldUnregisteredTips);
+        log.info("{}개의 오래된 미등록 꿀팁이 성공적으로 삭제되었습니다.", oldUnregisteredTips.size());
+    }
+
+    // 팁 삭제
+    @Transactional
+    public void delete(Long tipNo, Long userNo) {
+        Tip tip = tipRepository.findByNoAndUser_No(tipNo, userNo)
+                .orElseThrow(() -> new AccessDeniedException("삭제 권한이 없습니다."));
+
+        tipTagRepository.deleteByTipNo(tipNo);
+        tipRepository.delete(tip);
+    }
+
+    // 태그 기반 검색
+    public List<TipResponse> getTipsByTag(String tagName) {
+        return tipRepository.findTipsByTagName(tagName)
+                .stream().map(TipResponse::from).toList();
+    }
+
+//    // 특정 보관함의 꿀팁 조회
+//    public List<TipResponse> getTipsByStorage(Long storageId) {
+//        return tipRepository.findTipsByStorageId(storageId)
+//                .stream().map(TipResponse::from).toList();
+//    }
 
     // 팁 생성 시 알림과 함께 저장
     public Tip createTip(Tip tip) {
@@ -227,13 +357,27 @@ public class TipService {
         }
     }
 
-    // 팁 삭제
-    @Transactional
-    public void delete(Long tipNo, Long userNo) {
-        Tip tip = tipRepository.findByNoAndUser_No(tipNo, userNo)
-                .orElseThrow(() -> new AccessDeniedException("삭제 권한이 없습니다."));
-
-        tipTagRepository.deleteByTipNo(tipNo);
-        tipRepository.delete(tip);
-    }
+//    // 전체 공개 팁 조회
+//    public List<TipResponse> getAllPublicTips() {
+//        return tipRepository.findAllByIsPublicTrueOrderByCreatedAtDesc()
+//                .stream().map(TipResponse::from).toList();
+//    }
+//
+//    // 유저별 팁 조회
+//    public List<TipResponse> getTipsByUser(Long userNo) {
+//        return tipRepository.findAllByUser_NoOrderByCreatedAtDesc(userNo)
+//                .stream().map(TipResponse::from).toList();
+//    }
+//
+//    // 그룹 보관함의 꿀팁 조회
+//    public List<TipResponse> getTipsByGroup(Long groupId) {
+//        return tipRepository.findTipsByGroupId(groupId)
+//                .stream().map(TipResponse::from).toList();
+//    }
+//
+//    // 사용자 보관함 꿀팁 조회
+//    public List<TipResponse> getTipsInUserStorage(Long userId) {
+//        return tipRepository.findTipsByUserStorage(userId)
+//                .stream().map(TipResponse::from).toList();
+//    }
 }
