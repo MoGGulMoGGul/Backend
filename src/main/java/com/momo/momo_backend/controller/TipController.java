@@ -1,7 +1,6 @@
 package com.momo.momo_backend.controller;
 
 import com.momo.momo_backend.dto.*;
-import com.momo.momo_backend.entity.Tip;
 import com.momo.momo_backend.security.CustomUserDetails;
 import com.momo.momo_backend.service.TipService;
 import jakarta.validation.Valid;
