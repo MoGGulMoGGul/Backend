@@ -34,6 +34,9 @@ public class Tip {
     @Column(name = "content_summary", columnDefinition = "TEXT")
     private String contentSummary;  // 요약
 
+    @Column(name = "thumbnail_url", columnDefinition = "TEXT")
+    private String thumbnailUrl; // 썸네일 URL 필드
+
     @Column(name = "is_public", nullable = false)
     private Boolean isPublic = true;  // 공개 여부
 

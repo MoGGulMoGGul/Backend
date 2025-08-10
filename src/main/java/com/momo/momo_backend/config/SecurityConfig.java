@@ -93,8 +93,9 @@ public class SecurityConfig {
                                     "/swagger-ui/**",
                                     "/v3/api-docs/**",
                                     "/api/tips/tag/**",
-                                    "/api/tips/public",
-                                    "/api/query/**"         // 조회 API 허용
+                                    "/api/tips/public",     // TipController의 공개 팁 조회 허용
+                                    "/api/query/tips/all", // 전체 공개 꿀팁 조회 허용
+                                    "/api/query/tips/{tipId}" // 상세 팁 조회 허용
                             ).permitAll()
                             .anyRequest().authenticated();  // 나머지 요청은 인증 필요
                 })

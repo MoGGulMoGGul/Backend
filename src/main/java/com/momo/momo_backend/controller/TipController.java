@@ -23,11 +23,11 @@ public class TipController {
 
     private final TipService tipService;
 
-    // 팁 생성
+    // 꿀팁 생성 (AI 요약 요청 및 임시 팁 저장)
     @PostMapping("/generate")
-    public ResponseEntity<?> generateTip(@RequestBody TipRequest tipRequest, // 반환 타입을 ResponseEntity<?>로 변경
+    public ResponseEntity<?> generateTip(@RequestBody TipRequest tipRequest,
                                          @AuthenticationPrincipal CustomUserDetails userDetails) {
-        log.info("꿀팁 생성 요청 - 사용자: {}, 보관함 ID: {}", userDetails.getUsername(), tipRequest.getStorageId());
+        log.info("꿀팁 생성 요청 - 사용자: {}, URL: {}", userDetails.getUsername(), tipRequest.getUrl());
         try {
             Long userNo = userDetails.getUser().getNo();
             TipResponse tipResponse = tipService.createTip(userNo, tipRequest);
@@ -36,23 +36,15 @@ public class TipController {
         } catch (IllegalArgumentException e) {
             log.error("꿀팁 생성 실패: {}", e.getMessage());
             ErrorResponse errorResponse = ErrorResponse.builder()
-                    .status(HttpStatus.BAD_REQUEST.value()) // 400 Bad Request
+                    .status(HttpStatus.BAD_REQUEST.value())
                     .message(e.getMessage())
                     .error(e.getClass().getSimpleName())
                     .build();
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
-        } catch (AccessDeniedException e) { // ✨ AccessDeniedException 처리 추가
-            log.error("꿀팁 생성 권한 없음: {}", e.getMessage());
-            ErrorResponse errorResponse = ErrorResponse.builder()
-                    .status(HttpStatus.FORBIDDEN.value()) // 403 Forbidden
-                    .message(e.getMessage())
-                    .error(e.getClass().getSimpleName())
-                    .build();
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
         } catch (Exception e) {
             log.error("꿀팁 생성 중 예상치 못한 오류 발생: {}", e.getMessage(), e);
             ErrorResponse errorResponse = ErrorResponse.builder()
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR.value()) // 500 Internal Server Error
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
                     .message("꿀팁 생성 중 오류가 발생했습니다.")
                     .error(e.getClass().getSimpleName())
                     .build();
@@ -60,13 +52,43 @@ public class TipController {
         }
     }
 
-    // 팁 등록
+    // 꿀팁 등록 (생성된 팁을 최종 보관함에 연결 및 공개 여부 설정)
     @PostMapping("/register")
-    public ResponseEntity<Tip> registerTip(@RequestBody TipRegisterRequest request) {
-        Tip updated = tipService.registerTip(request.getTipId());
-        return ResponseEntity.ok(updated);
+    public ResponseEntity<?> registerTip(@RequestBody TipRegisterRequest request,
+                                         @AuthenticationPrincipal CustomUserDetails userDetails) {
+        log.info("꿀팁 등록 요청 - 꿀팁 ID: {}, 보관함 ID: {}, 공개 여부: {}, 사용자: {}",
+                request.getTipId(), request.getStorageId(), request.getIsPublic(), userDetails.getUsername());
+        try {
+            Long userNo = userDetails.getUser().getNo(); // 등록하는 사용자 (팁 소유권 검증에 사용)
+            TipResponse updatedTip = tipService.registerTip(request, userNo);
+            log.info("꿀팁 등록 성공 - 꿀팁 ID: {}", updatedTip.getNo());
+            return ResponseEntity.ok(updatedTip);
+        } catch (IllegalArgumentException e) {
+            log.error("꿀팁 등록 실패: {}", e.getMessage());
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .status(HttpStatus.BAD_REQUEST.value())
+                    .message(e.getMessage())
+                    .error(e.getClass().getSimpleName())
+                    .build();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        } catch (AccessDeniedException e) {
+            log.error("꿀팁 등록 권한 없음: {}", e.getMessage());
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .status(HttpStatus.FORBIDDEN.value())
+                    .message(e.getMessage())
+                    .error(e.getClass().getSimpleName())
+                    .build();
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
+        } catch (Exception e) {
+            log.error("꿀팁 등록 중 예상치 못한 오류 발생: {}", e.getMessage(), e);
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .message("꿀팁 등록 중 오류가 발생했습니다.")
+                    .error(e.getClass().getSimpleName())
+                    .build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
     }
-
 
     // 팁 수정
     @PutMapping("/{no}")
@@ -75,43 +97,75 @@ public class TipController {
             @Valid @RequestBody TipUpdateRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ){
-        Long userNo = userDetails.getUser().getNo(); // 기존 구성 활용
+        Long userNo = userDetails.getUser().getNo();
         return ResponseEntity.ok(tipService.update(no, userNo, request));
     }
 
-    // 팁 삭제
+    // 꿀팁 삭제
     @DeleteMapping("/{no}")
-    public ResponseEntity<Void> delete (
+    public ResponseEntity<?> delete (
             @PathVariable Long no,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ){
-        Long userNo = userDetails.getUser().getNo();
-        tipService.delete(no, userNo);
-        return ResponseEntity.noContent().build();
+        try {
+            Long userNo = userDetails.getUser().getNo();
+            tipService.delete(no, userNo);
+            log.info("꿀팁 삭제 성공: 꿀팁 ID {}", no);
+
+            // 삭제 성공 메시지 반환
+            MessageResponse response = MessageResponse.builder()
+                    .message("꿀팁 삭제 완료.")
+                    .build();
+            return ResponseEntity.ok(response); // 200 OK와 메시지 반환
+        } catch (AccessDeniedException e) {
+            log.error("꿀팁 삭제 권한 없음: {}", e.getMessage());
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .status(HttpStatus.FORBIDDEN.value())
+                    .message(e.getMessage())
+                    .error(e.getClass().getSimpleName())
+                    .build();
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
+        } catch (IllegalArgumentException e) {
+            log.error("꿀팁 삭제 실패: {}", e.getMessage());
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .status(HttpStatus.NOT_FOUND.value())
+                    .message(e.getMessage())
+                    .error(e.getClass().getSimpleName())
+                    .build();
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+        } catch (Exception e) {
+            log.error("꿀팁 삭제 중 예상치 못한 오류 발생: {}", e.getMessage(), e);
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .message("꿀팁 삭제 중 오류가 발생했습니다.")
+                    .error(e.getClass().getSimpleName())
+                    .build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
     }
 
-    // 전체 공개 꿀팁 조회
-    @GetMapping("/public")
-    public ResponseEntity<List<TipResponse>> getPublicTips() {
-        List<TipResponse> tips = tipService.getAllPublicTips();
-        return ResponseEntity.ok(tips);
-    }
+//    // 전체 공개 꿀팁 조회
+//    @GetMapping("/public")
+//    public ResponseEntity<List<TipResponse>> getPublicTips() {
+//        List<TipResponse> tips = tipService.getAllPublicTips();
+//        return ResponseEntity.ok(tips);
+//    }
 
-    // 내 꿀팁 조회 API
-    @GetMapping("/storage/my")
-    public ResponseEntity<List<TipResponse>> getMyStorageTips(
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
-        return ResponseEntity.ok(
-                tipService.getTipsInUserStorage(userDetails.getUser().getNo()));
-    }
+//    // 내 꿀팁 조회 API
+//    @GetMapping("/storage/my")
+//    public ResponseEntity<List<TipResponse>> getMyStorageTips(
+//            @AuthenticationPrincipal CustomUserDetails userDetails) {
+//        return ResponseEntity.ok(
+//                tipService.getTipsInUserStorage(userDetails.getUser().getNo()));
+//    }
 
-    // 그룹 보관함의 꿀팁 조회
-    @GetMapping("/group/{groupId}")
-    public ResponseEntity<List<TipResponse>> getTipsByGroup(@PathVariable Long groupId) {
-        List<TipResponse> tips = tipService.getTipsByGroup(groupId);
-        return ResponseEntity.ok(tips);
-    } // 닫는 중괄호 추가
-
+//    // 그룹 보관함의 꿀팁 조회
+//    @GetMapping("/group/{groupId}")
+//    public ResponseEntity<List<TipResponse>> getTipsByGroup(@PathVariable Long groupId) {
+//        List<TipResponse> tips = tipService.getTipsByGroup(groupId);
+//        return ResponseEntity.ok(tips);
+//    } // 닫는 중괄호 추가
+//
 
     // 태그 기반 검색
     @GetMapping("/tag/{tagName}")
@@ -120,11 +174,11 @@ public class TipController {
         return ResponseEntity.ok(tips);
     }
 
-    // 특정 보관함의 꿀팁 조회
-    @GetMapping("/storage/{storageId}")
-    public ResponseEntity<List<TipResponse>> getTipsByStorage (@PathVariable Long storageId){
-        return ResponseEntity.ok(tipService.getTipsByStorage(storageId));
-    }
+//    // 특정 보관함의 꿀팁 조회
+//    @GetMapping("/storage/{storageId}")
+//    public ResponseEntity<List<TipResponse>> getTipsByStorage (@PathVariable Long storageId){
+//        return ResponseEntity.ok(tipService.getTipsByStorage(storageId));
+//    }
 
 
 }

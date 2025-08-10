@@ -5,16 +5,42 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 public interface TipRepository extends JpaRepository<Tip, Long> {
 
-    /* ====== 기본 조회 ====== */
+    /* ====== 기본 조회 (등록 여부 무관 - 기존 코드 유지) ====== */
     List<Tip> findAllByIsPublicTrueOrderByCreatedAtDesc();
     List<Tip> findAllByUser_NoOrderByCreatedAtDesc(Long userNo);
 
-    /* ====== 그룹 보관함 ====== */
+
+    /* ====== 등록된 팁 조회 (StorageTip과 연결된 팁 - TipQueryService에서 사용) ====== */
+
+    // 전체 공개 & 등록된 팁 조회
+    @Query("""
+           SELECT t
+           FROM Tip t
+           JOIN t.storageTips st
+           WHERE t.isPublic = true
+           ORDER BY t.createdAt DESC
+           """)
+    List<Tip> findAllPublicRegisteredTipsOrderByCreatedAtDesc();
+
+
+    // 특정 사용자가 등록한 팁 조회
+    @Query("""
+           SELECT t
+           FROM Tip t
+           JOIN t.storageTips st
+           WHERE t.user.no = :userNo
+           ORDER BY t.createdAt DESC
+           """)
+    List<Tip> findRegisteredTipsByUserNo(@Param("userNo") Long userNo);
+
+
+    /* ====== 그룹 보관함 (등록된 팁만) ====== */
     @Query("""
            SELECT t
            FROM   Tip t
@@ -25,7 +51,7 @@ public interface TipRepository extends JpaRepository<Tip, Long> {
            """)
     List<Tip> findTipsByGroupId(@Param("groupId") Long groupId);
 
-    /* ====== 내 보관함(전체) ====== */
+    /* ====== 내 보관함(전체) (등록된 팁만) ====== */
     @Query("""
            SELECT t
            FROM   Tip t
@@ -36,7 +62,7 @@ public interface TipRepository extends JpaRepository<Tip, Long> {
            """)
     List<Tip> findTipsByUserStorage(@Param("userId") Long userId);
 
-    /* ====== 태그 ====== */
+    /* ====== 태그 (등록된 팁만) ====== */
     @Query("""
            SELECT t
            FROM   Tip t
@@ -47,7 +73,7 @@ public interface TipRepository extends JpaRepository<Tip, Long> {
            """)
     List<Tip> findTipsByTagName(@Param("tagName") String tagName);
 
-    /* ====== 특정 보관함(ID) ====== */
+    /* ====== 특정 보관함(ID) (등록된 팁만) ====== */
     @Query("""
            SELECT st.tip
            FROM   StorageTip st
@@ -56,6 +82,14 @@ public interface TipRepository extends JpaRepository<Tip, Long> {
            """)
     List<Tip> findTipsByStorageId(@Param("storageId") Long storageId);
     Optional<Tip> findByNoAndUser_No(Long tipNo, Long userNo);
-    List<Tip> findAllByUser_No(Long userId);
-    List<Tip> findAllByIsPublicTrue();
+
+    // 미등록 상태이며 생성된 지 특정 시간(예: 24시간)이 지난 팁 조회
+    @Query("""
+           SELECT t
+           FROM Tip t
+           LEFT JOIN StorageTip st ON t.no = st.tip.no
+           WHERE st.tip.no IS NULL
+           AND t.createdAt < :cutoffTime
+           """)
+    List<Tip> findUnregisteredTipsOlderThan(@Param("cutoffTime") LocalDateTime cutoffTime);
 }

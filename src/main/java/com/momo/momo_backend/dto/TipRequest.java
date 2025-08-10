@@ -11,6 +11,4 @@ public class TipRequest {
     private String url;
     private String title;       // optional
     private List<String> tags;  // optional
-    private Boolean isPublic;
-    private Long storageId;
 }
