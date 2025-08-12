@@ -8,5 +8,5 @@ import java.util.List;
 @Getter
 @Setter
 public class GroupInviteRequest {
-    private List<Long> userIds; // 초대할 사용자들의 식별 번호 목록 (User.no)
+    private List<String> userLoginIds; // 초대할 사용자들의 로그인 아이디 목록 (User.loginId)
 }
