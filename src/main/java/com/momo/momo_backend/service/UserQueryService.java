@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -26,6 +27,17 @@ public class UserQueryService {
                         .nickname(user.getNickname())
                         .profileImageUrl(user.getProfileImage())
                         .build())
+                .collect(Collectors.toList());
+    }
+
+    // 사용자 아이디로 검색
+    public List<UserListResponse> searchUsersByLoginId(String loginId) {
+        if (loginId == null || loginId.isBlank()) {
+            return Collections.emptyList(); // 검색어가 없으면 빈 리스트 반환
+        }
+        List<User> users = userRepository.findByLoginIdContainingIgnoreCase(loginId);
+        return users.stream()
+                .map(UserListResponse::from)
                 .collect(Collectors.toList());
     }
 }

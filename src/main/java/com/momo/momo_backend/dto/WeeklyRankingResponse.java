@@ -12,6 +12,7 @@ public class WeeklyRankingResponse {
     private Long tipId;
     private String title;
     private String thumbnailUrl;
+    private Long userNo;
     private String nickname;
     private List<String> tags;
     private Long weeklyBookmarkCount;
@@ -22,8 +23,9 @@ public class WeeklyRankingResponse {
                 .tipId(tip.getNo())
                 .title(tip.getTitle())
                 .thumbnailUrl(tip.getThumbnailUrl())
+                .userNo(tip.getUser().getNo())
                 .nickname(tip.getUser().getNickname())
-                .tags(TipResponse.from(tip).getTags()) // 기존 TipResponse의 로직 재활용
+                .tags(TipResponse.from(tip).getTags())
                 .weeklyBookmarkCount(weeklyBookmarkCount)
                 .build();
     }

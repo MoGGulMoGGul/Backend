@@ -12,8 +12,6 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/api/tips")
 @RequiredArgsConstructor
@@ -166,14 +164,6 @@ public class TipController {
                     .status(HttpStatus.INTERNAL_SERVER_ERROR.value()).message(e.getMessage()).error(e.getClass().getSimpleName()).build();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
-    }
-
-
-    // 태그 기반 검색
-    @GetMapping("/tag/{tagName}")
-    public ResponseEntity<List<TipResponse>> getTipsByTag(@PathVariable String tagName){
-        List<TipResponse> tips = tipService.getTipsByTag(tagName);
-        return ResponseEntity.ok(tips);
     }
 
 }

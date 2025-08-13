@@ -1,7 +1,6 @@
 package com.momo.momo_backend.service;
 
-import com.momo.momo_backend.dto.ProfileImageUpdateResponse;
-import com.momo.momo_backend.dto.ProfileUpdateRequest;
+import com.momo.momo_backend.dto.ProfileUpdateResponse;
 import com.momo.momo_backend.entity.User;
 import com.momo.momo_backend.repository.UserRepository;
 import jakarta.annotation.PostConstruct;
@@ -14,7 +13,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -42,56 +40,47 @@ public class ProfileService {
 
     // 프로필 수정 메서드
     @Transactional
-    public User updateUserProfile(Long userNo, ProfileUpdateRequest request) {
+    public ProfileUpdateResponse updateProfile(Long userNo, String nickname, MultipartFile imageFile) {
         User user = userRepository.findById(userNo)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
 
-        String newNickname = request.getNickname();
-
-        // 변경할 닉네임이 현재 닉네임과 다를 경우에만 중복 검사 수행
-        if (!user.getNickname().equals(newNickname)) {
-            Optional<User> existingUser = userRepository.findByNickname(newNickname);
-            if (existingUser.isPresent()) {
+        // 1. 닉네임 수정 로직 (닉네임이 요청에 포함된 경우)
+        if (nickname != null && !nickname.isBlank()) {
+            // 변경할 닉네임이 현재 닉네임과 다를 경우에만 중복 검사 수행
+            if (!user.getNickname().equals(nickname) && userRepository.findByNickname(nickname).isPresent()) {
                 throw new IllegalArgumentException("이미 사용 중인 닉네임입니다.");
+            }
+            user.setNickname(nickname);
+        }
+
+        String newProfileImageUrl = user.getProfileImage();
+
+        // 2. 프로필 이미지 수정 로직 (이미지 파일이 요청에 포함된 경우)
+        if (imageFile != null && !imageFile.isEmpty()) {
+            try {
+                String originalFileName = imageFile.getOriginalFilename();
+                String extension = "";
+                if (originalFileName != null && originalFileName.contains(".")) {
+                    extension = originalFileName.substring(originalFileName.lastIndexOf("."));
+                }
+                String savedFileName = UUID.randomUUID().toString() + extension;
+                Path savedPath = this.uploadPath.resolve(savedFileName);
+
+                imageFile.transferTo(savedPath.toFile());
+
+                newProfileImageUrl = "/uploads/" + savedFileName; // 웹 접근 경로
+                user.setProfileImage(newProfileImageUrl);
+            } catch (IOException e) {
+                throw new RuntimeException("프로필 이미지 저장에 실패했습니다.", e);
             }
         }
 
-        user.setNickname(newNickname);
-        return userRepository.save(user);
-    }
+        userRepository.save(user);
 
-    // 프로필 이미지 업데이트 메서드
-    @Transactional
-    public ProfileImageUpdateResponse updateUserProfileImage(Long userNo, MultipartFile imageFile) {
-        User user = userRepository.findById(userNo)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
-
-        if (imageFile.isEmpty()) {
-            throw new IllegalArgumentException("이미지 파일이 비어있습니다.");
-        }
-
-        try {
-            String originalFileName = imageFile.getOriginalFilename();
-            String extension = originalFileName.substring(originalFileName.lastIndexOf("."));
-            String savedFileName = UUID.randomUUID().toString() + extension;
-
-            // 절대 경로를 사용하여 파일 저장 위치 결정
-            Path savedPath = this.uploadPath.resolve(savedFileName);
-
-            // 파일 저장
-            imageFile.transferTo(savedPath.toFile());
-
-            // DB에 저장할 경로는 웹에서 접근 가능한 상대 경로로 유지
-            String imageUrl = "/uploads/" + savedFileName;
-            user.setProfileImage(imageUrl);
-            userRepository.save(user);
-
-            return ProfileImageUpdateResponse.builder()
-                    .profileImageUrl(imageUrl)
-                    .build();
-
-        } catch (IOException e) {
-            throw new RuntimeException("프로필 이미지 저장에 실패했습니다.", e);
-        }
+        // 클라이언트에 반환할 응답 생성
+        return ProfileUpdateResponse.builder()
+                .message("프로필이 성공적으로 수정되었습니다.")
+                .profileImageUrl(newProfileImageUrl)
+                .build();
     }
 }

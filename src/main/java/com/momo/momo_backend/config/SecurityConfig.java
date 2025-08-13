@@ -102,7 +102,9 @@ public class SecurityConfig {
                                     "/api/bookmark/ranking/weekly", // 주간 북마크 랭킹 조회 허용
                                     "/api/bookmark/user/{userNo}/total-count", // 특정 사용자의 총 북마크 수 조회 허용
                                     "/api/profile/{userNo}", // 프로필 조회 경로 허용
-                                    "/api/users/all" // 모든 사용자 목록 조회 허용
+                                    "/api/users/all", // 모든 사용자 목록 조회 허용
+                                    "/api/users/search", // 사용자 아이디 검색 허용
+                                    "/api/query/tips/user/{userNo}" // 특정 사용자 공개 꿀팁 조회 경로 허용 추가
                             ).permitAll()
                             .anyRequest().authenticated();  // 나머지 요청은 인증 필요
                 })

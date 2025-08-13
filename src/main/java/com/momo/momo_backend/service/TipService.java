@@ -133,10 +133,7 @@ public class TipService {
                             // 사용자가 태그를 입력하지 않았을 경우에만 AI 태그로 업데이트
                             if (tip.getTipTags().isEmpty()) { // 팁에 연결된 태그가 없는 경우
                                 if (finalTags != null && !finalTags.isEmpty()) {
-                                    // 기존 태그 삭제 후 새로운 태그 추가 (이 경우 기존 태그가 없으므로 삭제는 불필요)
-                                    // tipTagRepository.deleteByTipNo(tip.getNo()); // 주석 처리 또는 제거
-                                    // tip.getTipTags().clear(); // 주석 처리 또는 제거
-
+                                    // 기존 태그 삭제 후 새로운 태그 추가
                                     for (String tagName : finalTags) {
                                         Tag tag = tagRepository.findByName(tagName)
                                                 .orElseGet(() -> tagRepository.save(Tag.builder().name(tagName).build()));
@@ -429,12 +426,6 @@ public class TipService {
             }
         }
         throw new RuntimeException("AI 작업 시간 초과: 요약 결과를 시간 내에 가져올 수 없습니다.");
-    }
-
-    // 태그 기반 검색
-    public List<TipResponse> getTipsByTag(String tagName) {
-        return tipRepository.findTipsByTagName(tagName)
-                .stream().map(TipResponse::from).toList();
     }
 
     // 팁 생성 시 알림과 함께 저장
