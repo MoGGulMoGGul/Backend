@@ -92,4 +92,7 @@ public interface TipRepository extends JpaRepository<Tip, Long> {
            AND t.createdAt < :cutoffTime
            """)
     List<Tip> findUnregisteredTipsOlderThan(@Param("cutoffTime") LocalDateTime cutoffTime);
+
+    // 특정 사용자가 작성한 공개 꿀팁 목록을 최신순으로 조회하는 메서드 추가
+    List<Tip> findAllByUser_NoAndIsPublicTrueOrderByCreatedAtDesc(Long userNo);
 }

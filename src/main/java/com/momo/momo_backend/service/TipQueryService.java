@@ -2,6 +2,7 @@ package com.momo.momo_backend.service;
 
 import com.momo.momo_backend.entity.Tip;
 import com.momo.momo_backend.repository.TipRepository;
+import com.momo.momo_backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -14,6 +15,7 @@ import java.util.List;
 public class TipQueryService {
 
     private final TipRepository tipRepository;
+    private final UserRepository userRepository; // 사용자 정보 조회를 위해 추가
 
     // 사용자가 작성한 팁 조회 (등록된 팁만)
     public List<Tip> getTipsByUser(Long userNo) {
@@ -34,5 +36,14 @@ public class TipQueryService {
     public Tip getTipDetails(Long tipNo) {
         return tipRepository.findById(tipNo)
                 .orElseThrow(() -> new IllegalArgumentException("해당 꿀팁이 존재하지 않습니다."));
+    }
+
+    // 특정 사용자의 공개 꿀팁 목록 조회
+    public List<Tip> getPublicTipsByUser(Long userNo) {
+        // 사용자가 존재하는지 먼저 확인
+        if (!userRepository.existsById(userNo)) {
+            throw new IllegalArgumentException("사용자를 찾을 수 없습니다.");
+        }
+        return tipRepository.findAllByUser_NoAndIsPublicTrueOrderByCreatedAtDesc(userNo);
     }
 }

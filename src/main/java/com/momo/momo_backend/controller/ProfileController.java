@@ -1,9 +1,6 @@
 package com.momo.momo_backend.controller;
 
-import com.momo.momo_backend.dto.ErrorResponse;
-import com.momo.momo_backend.dto.MessageResponse;
-import com.momo.momo_backend.dto.ProfileImageUpdateResponse;
-import com.momo.momo_backend.dto.ProfileUpdateRequest;
+import com.momo.momo_backend.dto.*;
 import com.momo.momo_backend.security.CustomUserDetails;
 import com.momo.momo_backend.service.ProfileService;
 import lombok.RequiredArgsConstructor;
@@ -23,31 +20,13 @@ public class ProfileController {
     // 프로필 수정
     @PutMapping
     public ResponseEntity<?> updateUserProfile(
-            @RequestBody ProfileUpdateRequest request,
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
-        try {
-            profileService.updateUserProfile(userDetails.getUser().getNo(), request);
-            MessageResponse response = MessageResponse.builder()
-                    .message("프로필이 성공적으로 수정되었습니다.")
-                    .build();
-            return ResponseEntity.ok(response);
-        } catch (IllegalArgumentException e) {
-            ErrorResponse errorResponse = ErrorResponse.builder()
-                    .status(HttpStatus.BAD_REQUEST.value())
-                    .message(e.getMessage())
-                    .error(e.getClass().getSimpleName())
-                    .build();
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
-        }
-    }
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam(value = "nickname", required = false) String nickname,
+            @RequestParam(value = "image", required = false) MultipartFile imageFile) {
 
-    // 프로필 이미지 수정
-    @PostMapping("/image")
-    public ResponseEntity<?> updateUserProfileImage(
-            @RequestParam("image") MultipartFile imageFile,
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
         try {
-            ProfileImageUpdateResponse response = profileService.updateUserProfileImage(userDetails.getUser().getNo(), imageFile);
+            // 서비스 로직 호출 (닉네임과 이미지 파일을 모두 전달)
+            ProfileUpdateResponse response = profileService.updateProfile(userDetails.getUser().getNo(), nickname, imageFile);
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
             ErrorResponse errorResponse = ErrorResponse.builder()

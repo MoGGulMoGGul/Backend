@@ -27,15 +27,17 @@ public class StorageQueryController {
 
     // 특정 사용자의 보관함 목록 조회 API
     @GetMapping("/{userNo}")
-    public ResponseEntity<?> getStoragesByUser(@PathVariable Long userNo) { // 반환 타입을 ResponseEntity<?>로 변경
+    public ResponseEntity<?> getStoragesByUser(@PathVariable Long userNo) {
         log.info("보관함 목록 조회 요청 - userNo: {}", userNo);
         try {
             List<Storage> storages = storageQueryService.findByUser(userNo);
 
-            // Storage 엔티티 리스트를 StorageNameResponse DTO 리스트로 변환
+            // StorageNameResponse DTO 리스트로 변환하며 필드 추가
             List<StorageNameResponse> responseList = storages.stream()
                     .map(storage -> StorageNameResponse.builder()
+                            .storageNo(storage.getNo()) // storageNo 추가
                             .name(storage.getName())
+                            .userNo(storage.getUser().getNo()) // userNo 추가
                             .build())
                     .collect(Collectors.toList());
 
@@ -43,9 +45,8 @@ public class StorageQueryController {
             return ResponseEntity.ok(responseList);
         } catch (IllegalArgumentException e) {
             log.error("보관함 목록 조회 실패: {}", e.getMessage());
-            // IllegalArgumentException 발생 시 ErrorResponse DTO를 반환
             ErrorResponse errorResponse = ErrorResponse.builder()
-                    .status(HttpStatus.NOT_FOUND.value()) // 404 Not Found
+                    .status(HttpStatus.NOT_FOUND.value())
                     .message(e.getMessage())
                     .error(e.getClass().getSimpleName())
                     .build();

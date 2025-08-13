@@ -1,10 +1,12 @@
 package com.momo.momo_backend.controller;
 
+import com.momo.momo_backend.dto.ErrorResponse;
 import com.momo.momo_backend.entity.Tip;
 import com.momo.momo_backend.dto.TipResponse; // TipResponse DTO 임포트
 import com.momo.momo_backend.service.TipQueryService;
 import com.momo.momo_backend.security.CustomUserDetails; // CustomUserDetails 임포트
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal; // AuthenticationPrincipal 임포트
 import org.springframework.web.bind.annotation.*;
@@ -59,5 +61,24 @@ public class TipQueryController {
         Tip tip = tipQueryService.getTipDetails(tipId);
         TipResponse response = TipResponse.from(tip);
         return ResponseEntity.ok(response);
+    }
+
+    // 특정 사용자의 공개 꿀팁 목록 조회 - 토큰 불필요
+    @GetMapping("/user/{userNo}")
+    public ResponseEntity<?> getPublicTipsByUser(@PathVariable Long userNo) {
+        try {
+            List<Tip> tips = tipQueryService.getPublicTipsByUser(userNo);
+            List<TipResponse> responseList = tips.stream()
+                    .map(TipResponse::from)
+                    .collect(Collectors.toList());
+            return ResponseEntity.ok(responseList);
+        } catch (IllegalArgumentException e) {
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .status(HttpStatus.NOT_FOUND.value())
+                    .message(e.getMessage())
+                    .error(e.getClass().getSimpleName())
+                    .build();
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+        }
     }
 }
