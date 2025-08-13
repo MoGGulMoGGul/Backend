@@ -37,30 +37,37 @@ public class Tip {
     @Column(name = "thumbnail_url", columnDefinition = "TEXT")
     private String thumbnailUrl; // 썸네일 URL 필드
 
+    @Builder.Default
     @Column(name = "is_public", nullable = false)
     private Boolean isPublic = true;  // 공개 여부
 
+    @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    @Builder.Default
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt = LocalDateTime.now();
 
     // ========== 연관 관계 ==========
 
     // 1:N(o) - StorageTip
+    @Builder.Default
     @OneToMany(mappedBy = "tip", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<StorageTip> storageTips = new ArrayList<>();
 
     // 1:N(o) - Notification
+    @Builder.Default
     @OneToMany(mappedBy = "tip", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Notification> notifications = new ArrayList<>();
 
     // 1:N(o) - TipTag
+    @Builder.Default
     @OneToMany(mappedBy = "tip", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TipTag> tipTags = new ArrayList<>();
 
     // 1:N(o) - Bookmark
+    @Builder.Default
     @OneToMany(mappedBy = "tip", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Bookmark> bookmarks = new ArrayList<>();
 }

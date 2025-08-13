@@ -64,17 +64,15 @@ public class GroupController {
     @PostMapping("/{groupId}/invite")
     public ResponseEntity<?> inviteGroupMember(
             @PathVariable Long groupId,
-            @RequestBody GroupInviteRequest request, // userIds 목록을 받음
+            @RequestBody GroupInviteRequest request, // userLoginIds 목록을 받음
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        log.info("그룹 멤버 초대 요청 - 그룹 ID: {}, 초대할 사용자 ID 목록: {}, 초대하는 사용자: {}",
-                groupId, request.getUserIds(), userDetails.getUsername()); // 로그 메시지 수정
+        log.info("그룹 멤버 초대 요청 - 그룹 ID: {}, 초대할 사용자 아이디 목록: {}, 초대하는 사용자: {}",
+                groupId, request.getUserLoginIds(), userDetails.getUsername());
         try {
             Long inviterUserNo = userDetails.getUser().getNo();
-            // inviteMembers 서비스 메서드 호출
             List<String> results = groupService.inviteMembers(groupId, request, inviterUserNo);
 
-            // 초대 결과 목록을 응답으로 반환
-            return ResponseEntity.ok(results); // 200 OK 응답
+            return ResponseEntity.ok(results);
         } catch (IllegalArgumentException e) {
             log.error("그룹 멤버 초대 실패: {}", e.getMessage());
             ErrorResponse errorResponse = ErrorResponse.builder()
@@ -145,7 +143,6 @@ public class GroupController {
         log.info("그룹 멤버 조회 요청 - 그룹 ID: {}, 요청 사용자: {}", groupId, userDetails.getUsername());
         try {
             Long requestingUserNo = userDetails.getUser().getNo(); // 요청하는 사용자 번호
-            // ✨ Service 호출 시 requestingUserNo 전달
             List<User> members = groupService.getGroupMembers(groupId, requestingUserNo);
 
             List<GroupMemberResponse> responseList = members.stream()

@@ -143,6 +143,32 @@ public class TipController {
         }
     }
 
+    // AI 꿀팁 자동 생성 및 등록
+    @PostMapping("/auto-create-async")
+    public ResponseEntity<?> createAndRegisterTipAutoAsync(@RequestBody TipAutoCreateRequest request,
+                                                           @AuthenticationPrincipal CustomUserDetails userDetails) {
+        log.info("AI 꿀팁 자동 생성(비동기) 요청 - 사용자: {}, URL: {}", userDetails.getUsername(), request.getUrl());
+        try {
+            Long userNo = userDetails.getUser().getNo();
+            TipResponse tipResponse = tipService.createAndRegisterTipAutoAsync(userNo, request);
+            log.info("AI 꿀팁 자동 생성(비동기) 성공 - 꿀팁 ID: {}", tipResponse.getNo());
+            return ResponseEntity.status(HttpStatus.CREATED).body(tipResponse);
+        } catch (AccessDeniedException e) {
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .status(HttpStatus.FORBIDDEN.value()).message(e.getMessage()).error(e.getClass().getSimpleName()).build();
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
+        } catch (IllegalArgumentException e) {
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .status(HttpStatus.BAD_REQUEST.value()).message(e.getMessage()).error(e.getClass().getSimpleName()).build();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        } catch (RuntimeException e) { // RuntimeException 처리 추가
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR.value()).message(e.getMessage()).error(e.getClass().getSimpleName()).build();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
+
     // 태그 기반 검색
     @GetMapping("/tag/{tagName}")
     public ResponseEntity<List<TipResponse>> getTipsByTag(@PathVariable String tagName){

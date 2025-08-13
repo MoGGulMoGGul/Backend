@@ -23,8 +23,9 @@ public class Notification {
     @JoinColumn(name = "receiver_no", nullable = false)
     private User receiver; // 알림 수신자 (User.no)
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "tip_no", nullable = false)
+    // optional = true, nullable = true로 변경하여 null 값을 허용하도록 수정
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tip_no")
     private Tip tip; // 관련된 팁 번호 (Tip.no)
 
     @Builder.Default

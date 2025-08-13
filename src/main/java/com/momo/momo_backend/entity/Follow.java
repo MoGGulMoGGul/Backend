@@ -26,6 +26,7 @@ public class Follow {
     @JoinColumn(name = "following_no", nullable = false)
     private User following; // 팔로우 당한 사람
 
+    @Builder.Default
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now(); // 팔로우 생성 시간
 }

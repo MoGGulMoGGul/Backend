@@ -16,7 +16,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional; // Transactional 임포트
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -56,7 +58,7 @@ public class GroupService {
     }
 
     // 그룹에 사용자 초대
-    @Transactional // 반환 타입을 List<String>으로 변경하여 각 초대 결과를 반환
+    @Transactional
     public List<String> inviteMembers(Long groupId, GroupInviteRequest request, Long inviterUserNo) {
         // 1. 그룹 존재 여부 확인
         Group group = groupRepository.findById(groupId)
@@ -72,26 +74,29 @@ public class GroupService {
         }
 
         List<String> results = new ArrayList<>();
-        // 여러 사용자 ID를 반복하며 초대 로직 수행
-        for (Long userId : request.getUserIds()) {
+        // ✨ userLoginIds 목록을 반복하며 초대 로직 수행
+        Set<String> uniqueLoginIds = new LinkedHashSet<>(request.getUserLoginIds()); // 중복 아이디 제거
+
+        for (String loginId : uniqueLoginIds) {
             try {
-                User invitedUser = userRepository.findById(userId)
-                        .orElseThrow(() -> new IllegalArgumentException("사용자 ID " + userId + "를 찾을 수 없습니다."));
+                // 로그인 아이디로 사용자 찾기
+                User invitedUser = userRepository.findByLoginId(loginId)
+                        .orElseThrow(() -> new IllegalArgumentException("사용자 아이디 '" + loginId + "'를 찾을 수 없습니다."));
 
                 if (groupMemberRepository.existsByGroupAndUser(group, invitedUser)) {
-                    results.add("사용자 ID " + userId + "는 이미 그룹의 멤버입니다.");
+                    results.add("사용자 아이디 '" + loginId + "'는 이미 그룹의 멤버입니다.");
                 } else {
                     GroupMember newMember = GroupMember.builder()
                             .group(group)
                             .user(invitedUser)
                             .build();
                     groupMemberRepository.save(newMember);
-                    results.add("사용자 ID " + userId + "가 그룹에 성공적으로 초대되었습니다.");
+                    results.add("사용자 아이디 '" + loginId + "'가 그룹에 성공적으로 초대되었습니다.");
                 }
             } catch (IllegalArgumentException e) {
-                results.add("사용자 ID " + userId + " 초대 실패: " + e.getMessage());
+                results.add("사용자 아이디 '" + loginId + "' 초대 실패: " + e.getMessage());
             } catch (Exception e) {
-                results.add("사용자 ID " + userId + " 초대 중 알 수 없는 오류 발생: " + e.getMessage());
+                results.add("사용자 아이디 '" + loginId + "' 초대 중 알 수 없는 오류 발생: " + e.getMessage());
             }
         }
         return results;
@@ -128,7 +133,7 @@ public class GroupService {
                 .orElseThrow(() -> new IllegalArgumentException("요청하는 사용자가 존재하지 않습니다.")); // 인증된 사용자이므로 보통 발생하지 않음
 
         if (!groupMemberRepository.existsByGroupAndUser(group, requestingUser)) {
-            // ✨ 그룹 멤버가 아니면 AccessDeniedException 발생
+            // 그룹 멤버가 아니면 AccessDeniedException 발생
             throw new AccessDeniedException("그룹 멤버만 그룹 멤버 목록을 조회할 수 있습니다.");
         }
 
@@ -145,8 +150,6 @@ public class GroupService {
     @Transactional(readOnly = true)
     public List<GroupListResponse> getGroupsForUser(Long userNo) {
         // 1. 사용자 존재 여부 확인 (인증된 사용자이므로 보통 발생하지 않음)
-        User user = userRepository.findById(userNo)
-                .orElseThrow(() -> new IllegalArgumentException("사용자가 존재하지 않습니다."));
 
         // 2. 해당 사용자가 속한 모든 GroupMember 엔티티 조회
         List<GroupMember> groupMemberships = groupMemberRepository.findAllByUser_No(userNo);
