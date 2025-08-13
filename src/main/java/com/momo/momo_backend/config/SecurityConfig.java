@@ -95,7 +95,9 @@ public class SecurityConfig {
                                     "/api/tips/tag/**",
                                     "/api/tips/public",     // TipController의 공개 팁 조회 허용
                                     "/api/query/tips/all", // 전체 공개 꿀팁 조회 허용
-                                    "/api/query/tips/{tipId}" // 상세 팁 조회 허용
+                                    "/api/query/tips/{tipId}",
+                                    "/api/search/tips/public",
+                                    "/api/search/tips/tag/**"// 상세 팁 조회 허용
                             ).permitAll()
                             .anyRequest().authenticated();  // 나머지 요청은 인증 필요
                 })
