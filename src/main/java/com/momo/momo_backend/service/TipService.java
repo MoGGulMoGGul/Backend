@@ -437,12 +437,6 @@ public class TipService {
                 .stream().map(TipResponse::from).toList();
     }
 
-//    // 특정 보관함의 꿀팁 조회
-//    public List<TipResponse> getTipsByStorage(Long storageId) {
-//        return tipRepository.findTipsByStorageId(storageId)
-//                .stream().map(TipResponse::from).toList();
-//    }
-
     // 팁 생성 시 알림과 함께 저장
     public Tip createTip(Tip tip) {
         Tip savedTip = tipRepository.save(tip);
@@ -488,27 +482,4 @@ public class TipService {
         }
     }
 
-//    // 전체 공개 팁 조회
-//    public List<TipResponse> getAllPublicTips() {
-//        return tipRepository.findAllByIsPublicTrueOrderByCreatedAtDesc()
-//                .stream().map(TipResponse::from).toList();
-//    }
-//
-//    // 유저별 팁 조회
-//    public List<TipResponse> getTipsByUser(Long userNo) {
-//        return tipRepository.findAllByUser_NoOrderByCreatedAtDesc(userNo)
-//                .stream().map(TipResponse::from).toList();
-//    }
-//
-//    // 그룹 보관함의 꿀팁 조회
-//    public List<TipResponse> getTipsByGroup(Long groupId) {
-//        return tipRepository.findTipsByGroupId(groupId)
-//                .stream().map(TipResponse::from).toList();
-//    }
-//
-//    // 사용자 보관함 꿀팁 조회
-//    public List<TipResponse> getTipsInUserStorage(Long userId) {
-//        return tipRepository.findTipsByUserStorage(userId)
-//                .stream().map(TipResponse::from).toList();
-//    }
 }

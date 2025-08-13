@@ -95,6 +95,9 @@ public class SecurityConfig {
                                     "/api/tips/tag/**",
                                     "/api/tips/public",     // 공개 팁 조회 허용
                                     "/api/query/tips/all", // 전체 공개 꿀팁 조회 허용
+                                    "/api/query/tips/{tipId}",
+                                    "/api/search/tips/public",
+                                    "/api/search/tips/tag/**",// 상세 팁 조회 허용
                                     "/api/query/tips/{tipId}", // 상세 팁 조회 허용
                                     "/api/bookmark/ranking/weekly", // 주간 북마크 랭킹 조회 허용
                                     "/api/bookmark/user/{userNo}/total-count", // 특정 사용자의 총 북마크 수 조회 허용
