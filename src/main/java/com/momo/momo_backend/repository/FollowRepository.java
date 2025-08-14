@@ -31,4 +31,7 @@ public interface FollowRepository extends JpaRepository<Follow, Long> {
     // 특정 사용자가 팔로우하는 사용자 목록(팔로잉)을 조회하는 쿼리 추가
     @Query("SELECT f.following FROM Follow f WHERE f.follower.no = :userNo")
     List<User> findFollowingByUserNo(@Param("userNo") Long userNo);
+
+    // 팔로우 상태 확인을 위한 메서드 추가
+    boolean existsByFollower_NoAndFollowing_No(Long followerNo, Long followingNo);
 }

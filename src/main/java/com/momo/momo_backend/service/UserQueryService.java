@@ -2,6 +2,7 @@ package com.momo.momo_backend.service;
 
 import com.momo.momo_backend.dto.UserListResponse;
 import com.momo.momo_backend.entity.User;
+import com.momo.momo_backend.repository.FollowRepository;
 import com.momo.momo_backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ import java.util.stream.Collectors;
 public class UserQueryService {
 
     private final UserRepository userRepository;
+    private final FollowRepository followRepository;
 
     // 모든 사용자 조회
     public List<UserListResponse> getAllUsers() {
@@ -31,13 +33,17 @@ public class UserQueryService {
     }
 
     // 사용자 아이디로 검색
-    public List<UserListResponse> searchUsersByLoginId(String loginId) {
+    public List<UserListResponse> searchUsersByLoginId(String loginId, Long myUserNo) {
         if (loginId == null || loginId.isBlank()) {
-            return Collections.emptyList(); // 검색어가 없으면 빈 리스트 반환
+            return Collections.emptyList();
         }
         List<User> users = userRepository.findByLoginIdContainingIgnoreCase(loginId);
         return users.stream()
-                .map(UserListResponse::from)
+                .map(user -> {
+                    Boolean isFollowing = user.getNo().equals(myUserNo) ? null :
+                            followRepository.existsByFollower_NoAndFollowing_No(myUserNo, user.getNo());
+                    return UserListResponse.from(user, isFollowing);
+                })
                 .collect(Collectors.toList());
     }
 }

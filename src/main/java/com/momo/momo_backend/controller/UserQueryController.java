@@ -1,9 +1,11 @@
 package com.momo.momo_backend.controller;
 
 import com.momo.momo_backend.dto.UserListResponse;
+import com.momo.momo_backend.security.CustomUserDetails;
 import com.momo.momo_backend.service.UserQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -27,8 +29,10 @@ public class UserQueryController {
 
     // 사용자 아이디 검색
     @GetMapping("/search")
-    public ResponseEntity<List<UserListResponse>> searchUsers(@RequestParam("id") String loginId) {
-        List<UserListResponse> users = userQueryService.searchUsersByLoginId(loginId);
+    public ResponseEntity<List<UserListResponse>> searchUsers(
+            @RequestParam("id") String loginId,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        List<UserListResponse> users = userQueryService.searchUsersByLoginId(loginId, userDetails.getUser().getNo());
         return ResponseEntity.ok(users);
     }
 }
