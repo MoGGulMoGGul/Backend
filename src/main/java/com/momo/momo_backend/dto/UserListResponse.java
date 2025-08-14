@@ -10,12 +10,14 @@ public class UserListResponse {
     private Long userNo;
     private String nickname;
     private String profileImageUrl;
+    private Boolean isFollowing;
 
-    public static UserListResponse from(User user) {
+    public static UserListResponse from(User user, Boolean isFollowing) {
         return UserListResponse.builder()
                 .userNo(user.getNo())
                 .nickname(user.getNickname())
                 .profileImageUrl(user.getProfileImage())
+                .isFollowing(isFollowing)
                 .build();
     }
 }

@@ -287,10 +287,14 @@ public class TipService {
     // 팁 삭제
     @Transactional
     public void delete(Long tipNo, Long userNo) {
+        // 1. 삭제할 꿀팁을 찾고, 현재 로그인한 사용자가 소유자인지 확인합니다.
         Tip tip = tipRepository.findByNoAndUser_No(tipNo, userNo)
                 .orElseThrow(() -> new AccessDeniedException("삭제 권한이 없습니다."));
 
-        tipTagRepository.deleteByTipNo(tipNo);
+        // 2. 꿀팁을 삭제합니다.
+        //    Tip 엔티티의 @OneToMany에 설정된 cascade = CascadeType.ALL 옵션으로 인해
+        //    연관된 모든 즐겨찾기(Bookmark), 보관함-꿀팁(StorageTip), 알림(Notification),
+        //    꿀팁-태그(TipTag) 데이터가 자동으로 함께 삭제됩니다.
         tipRepository.delete(tip);
     }
 
