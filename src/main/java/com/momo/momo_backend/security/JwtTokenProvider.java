@@ -28,6 +28,11 @@ public class JwtTokenProvider {
         this.key = Keys.hmacShaKeyFor(keyBytes);
     }
 
+    public long getRefreshTokenValidity() {
+        return refreshTokenValidity;
+    }
+
+
     // ✅ AccessToken 생성
     public String createAccessToken(String userId) {
         Date now = new Date();
@@ -40,9 +45,10 @@ public class JwtTokenProvider {
     }
 
     // ✅ RefreshToken 생성
-    public String createRefreshToken() {
+    public String createRefreshToken(String userId) { // userId 파라미터 추가
         Date now = new Date();
         return Jwts.builder()
+                .setSubject(userId) // Subject(사용자 ID) 설정 추가
                 .setIssuedAt(now)
                 .setExpiration(new Date(now.getTime() + refreshTokenValidity))
                 .signWith(key, SignatureAlgorithm.HS256)
@@ -77,5 +83,15 @@ public class JwtTokenProvider {
             return bearer.substring(7);
         }
         return null;
+    }
+
+    // 토큰의 만료 시간을 가져오는 메서드 추가
+    public Date getExpirationDateFromToken(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .getExpiration();
     }
 }
