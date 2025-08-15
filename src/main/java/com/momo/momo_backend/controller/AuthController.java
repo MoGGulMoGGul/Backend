@@ -1,12 +1,15 @@
 package com.momo.momo_backend.controller;
 
+import com.momo.momo_backend.dto.ErrorResponse;
 import com.momo.momo_backend.dto.LoginRequest;
 import com.momo.momo_backend.dto.LoginResponse;
 import com.momo.momo_backend.dto.SignupRequest;
 import com.momo.momo_backend.security.CustomUserDetails;
 import com.momo.momo_backend.security.JwtTokenProvider;
 import com.momo.momo_backend.service.AuthService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -35,16 +38,33 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@RequestHeader("Authorization") String accessToken) {
+        authService.logout(accessToken); // 수정된 서비스 메서드 호출
         return ResponseEntity.ok().build();
     }
 
-    @PostMapping("/refresh")
-    public ResponseEntity<LoginResponse> refresh(@RequestHeader("Authorization") String refreshToken) {
-        String userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
-        String newAccessToken = jwtTokenProvider.createAccessToken(userId);
-        String newRefreshToken = jwtTokenProvider.createRefreshToken();
 
-        return ResponseEntity.ok(new LoginResponse(newAccessToken, newRefreshToken));
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refresh(HttpServletRequest request) {
+        String refreshToken = jwtTokenProvider.resolveToken(request);
+        if (refreshToken == null) {
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .status(HttpStatus.UNAUTHORIZED.value())
+                    .message("리프레시 토큰이 없습니다.")
+                    .error("MissingTokenException")
+                    .build();
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
+        }
+        try {
+            LoginResponse newTokens = authService.refresh(refreshToken);
+            return ResponseEntity.ok(newTokens);
+        } catch (IllegalArgumentException e) {
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .status(HttpStatus.UNAUTHORIZED.value())
+                    .message(e.getMessage())
+                    .error(e.getClass().getSimpleName())
+                    .build();
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
+        }
     }
 
     @GetMapping("/check-id")
