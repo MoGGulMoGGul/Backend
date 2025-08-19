@@ -91,6 +91,7 @@ public class SecurityConfig {
                             .requestMatchers(
                                     "/api/auth/**",         // 로그인/회원가입 허용
                                     "/swagger-ui/**",
+                                    "/ws/**", // 웹소켓 엔드포인트 허용
                                     "/v3/api-docs/**",
                                     "/api/tips/tag/**",
                                     "/api/tips/public",     // 공개 팁 조회 허용

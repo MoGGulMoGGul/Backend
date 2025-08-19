@@ -18,7 +18,7 @@ public class BookmarkService {
     private final BookmarkRepository bookmarkRepository;
     private final TipRepository tipRepository;
     private final UserRepository userRepository;
-    private final NotificationRepository notificationRepository;
+    private final NotificationService notificationService;
     private final StorageRepository storageRepository;
     private final StorageTipRepository storageTipRepository;
 
@@ -95,8 +95,6 @@ public class BookmarkService {
 
     private void notifyTipOwnerOfBookmark(Tip tip, User bookmarker) {
         User tipOwner = tip.getUser();
-
-        // 본인이 자기 꿀팁을 북마크한 경우 알림 생략
         if (tipOwner.getNo().equals(bookmarker.getNo())) return;
 
         Notification notification = Notification.builder()
@@ -106,6 +104,6 @@ public class BookmarkService {
                 .isRead(false)
                 .build();
 
-        notificationRepository.save(notification);
+        notificationService.sendNotification(notification);
     }
 }

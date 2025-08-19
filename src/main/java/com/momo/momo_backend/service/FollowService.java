@@ -17,7 +17,7 @@ public class FollowService {
 
     private final FollowRepository followRepository;
     private final UserRepository userRepository;
-    private final NotificationRepository notificationRepository;
+    private final NotificationService notificationService;
 
     @Transactional
     public void followUser(Long followerId, String followeeLoginId) {
@@ -45,12 +45,12 @@ public class FollowService {
         // 알림 전송 (팔로우 당한 사람에게)
         Notification notification = Notification.builder()
                 .receiver(following)
-                .tip(null) // 팔로우는 특정 팁과 무관
+                .tip(null)
                 .type(NotificationType.FOLLOWED_ME)
                 .isRead(false)
                 .build();
 
-        notificationRepository.save(notification);
+        notificationService.sendNotification(notification);
     }
 
     // 팔로우 취소 메서드 추가

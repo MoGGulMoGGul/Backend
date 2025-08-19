@@ -32,7 +32,7 @@ public class TipService {
     private final UserRepository userRepository;
     private final StorageRepository storageRepository;
     private final FollowRepository followRepository;
-    private final NotificationRepository notificationRepository;
+    private final NotificationService notificationService;
     private final StorageTipRepository storageTipRepository;
     private final GroupMemberRepository groupMemberRepository; // 그룹 멤버 리포지토리 추가
 
@@ -442,17 +442,34 @@ public class TipService {
 
     // 팔로워에게 알림 전송
     private void notifyFollowers(Tip savedTip) {
-        List<Notification> notis = followRepository.findByFollowing(savedTip.getUser())
-                .stream()
-                .map(f -> Notification.builder()
-                        .receiver(f.getFollower())
-                        .tip(savedTip)
-                        .type(NotificationType.FOLLOWING_TIP_UPLOAD)
-                        .isRead(false)
-                        .build())
-                .toList();
+        log.info("팔로워에게 알림을 보낼 꿀팁: {}", savedTip.getNo());
 
-        notificationRepository.saveAll(notis);
+        // 꿀팁 작성자를 팔로우하는 사용자(팔로워) 목록 조회
+        List<Follow> followers = followRepository.findByFollowing(savedTip.getUser());
+        log.info("조회된 팔로워 수: {}", followers.size());
+
+        // 알림을 보낼 팔로워가 없는 경우 로그를 남기고 종료
+        if (followers.isEmpty()) {
+            log.info("꿀팁 '{}'(ID: {})의 팔로워가 없어 알림을 보내지 않습니다.", savedTip.getTitle(), savedTip.getNo());
+            return;
+        }
+
+        // 각 팔로워에게 알림 전송
+        followers.forEach(f -> {
+            Notification notification = Notification.builder()
+                    .receiver(f.getFollower())
+                    .tip(savedTip)
+                    .type(NotificationType.FOLLOWING_TIP_UPLOAD)
+                    .isRead(false)
+                    .build();
+
+            log.info("꿀팁 알림 전송 대상: 사용자 ID = {}, 닉네임 = {}",
+                    notification.getReceiver().getNo(),
+                    notification.getReceiver().getNickname());
+
+            // 이 메서드 내부에서 DB 저장과 웹소켓 전송이 모두 이루어집니다.
+            notificationService.sendNotification(notification);
+        });
     }
 
     // 그룹 멤버에게 알림 전송
@@ -473,7 +490,7 @@ public class TipService {
                 .toList();
 
         if (!notis.isEmpty()) {
-            notificationRepository.saveAll(notis);
+            notis.forEach(notificationService::sendNotification); // 변경된 메서드 호출
         }
     }
 
