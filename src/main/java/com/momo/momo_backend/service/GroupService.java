@@ -59,9 +59,9 @@ public class GroupService {
 
     // 그룹에 사용자 초대
     @Transactional
-    public List<String> inviteMembers(Long groupId, GroupInviteRequest request, Long inviterUserNo) {
+    public List<String> inviteMembers(Long groupNo, GroupInviteRequest request, Long inviterUserNo) {
         // 1. 그룹 존재 여부 확인
-        Group group = groupRepository.findById(groupId)
+        Group group = groupRepository.findById(groupNo)
                 .orElseThrow(() -> new IllegalArgumentException("그룹이 존재하지 않습니다."));
 
         // 2. 초대하는 사용자가 그룹 멤버인지 확인
@@ -104,9 +104,9 @@ public class GroupService {
 
     // 그룹 멤버 나가기
     @Transactional // 트랜잭션 관리
-    public void leaveGroup(Long groupId, Long userNo) {
+    public void leaveGroup(Long groupNo, Long userNo) {
         // 1. 그룹 존재 여부 확인
-        Group group = groupRepository.findById(groupId)
+        Group group = groupRepository.findById(groupNo)
                 .orElseThrow(() -> new IllegalArgumentException("그룹이 존재하지 않습니다."));
 
         // 2. 나갈 사용자 존재 여부 확인
@@ -123,9 +123,9 @@ public class GroupService {
 
     // 그룹 멤버 조회
     @Transactional(readOnly = true)
-    public List<User> getGroupMembers(Long groupId, Long requestingUserNo) {
+    public List<User> getGroupMembers(Long groupNo, Long requestingUserNo) {
         // 1. 그룹 존재 여부 확인
-        Group group = groupRepository.findById(groupId)
+        Group group = groupRepository.findById(groupNo)
                 .orElseThrow(() -> new IllegalArgumentException("그룹이 존재하지 않습니다."));
 
         // 2. 요청하는 사용자가 그룹 멤버인지 확인
@@ -170,9 +170,9 @@ public class GroupService {
 
     // 그룹명 수정
     @Transactional
-    public Group updateGroupName(Long groupId, GroupUpdateRequest request, Long requestingUserNo) {
+    public Group updateGroupName(Long groupNo, GroupUpdateRequest request, Long requestingUserNo) {
         // 1. 그룹 존재 여부 확인
-        Group group = groupRepository.findById(groupId)
+        Group group = groupRepository.findById(groupNo)
                 .orElseThrow(() -> new IllegalArgumentException("그룹이 존재하지 않습니다."));
 
         // 2. 요청하는 사용자 존재 여부 확인

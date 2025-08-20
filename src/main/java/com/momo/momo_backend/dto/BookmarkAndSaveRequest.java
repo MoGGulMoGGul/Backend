@@ -4,6 +4,6 @@ import lombok.Getter;
 
 @Getter
 public class BookmarkAndSaveRequest {
-    private Long tipId;
-    private Long storageId;
+    private Long tipNo;
+    private Long storageNo;
 }

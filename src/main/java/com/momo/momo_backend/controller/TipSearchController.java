@@ -42,9 +42,9 @@ public class TipSearchController {
     }
 
     /** 그룹 보관함 검색 — 멤버만 접근 가능 */
-    @GetMapping("/group/{groupId}")
+    @GetMapping("/group/{groupNo}")
     public ResponseEntity<List<TipResponse>> searchGroup(
-            @PathVariable Long groupId,
+            @PathVariable Long groupNo,
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "OR") String mode, // OR | AND
@@ -52,13 +52,13 @@ public class TipSearchController {
             @RequestParam(defaultValue = "20") int size
     ) {
         Long userNo = userDetails.getUser().getNo();
-        return ResponseEntity.ok(tipSearchService.searchGroup(groupId, userNo, keyword, mode, page, size));
+        return ResponseEntity.ok(tipSearchService.searchGroup(groupNo, userNo, keyword, mode, page, size));
     }
 
     /** 특정 보관함 검색 — 소유자 또는 그룹 멤버만 */
-    @GetMapping("/storage/{storageId}")
+    @GetMapping("/storage/{storageNo}")
     public ResponseEntity<List<TipResponse>> searchStorage(
-            @PathVariable Long storageId,
+            @PathVariable Long storageNo,
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "OR") String mode, // OR | AND
@@ -66,7 +66,7 @@ public class TipSearchController {
             @RequestParam(defaultValue = "20") int size
     ) {
         Long userNo = userDetails.getUser().getNo();
-        return ResponseEntity.ok(tipSearchService.searchStorage(storageId, userNo, keyword, mode, page, size));
+        return ResponseEntity.ok(tipSearchService.searchStorage(storageNo, userNo, keyword, mode, page, size));
     }
 
     /** 태그 + 키워드 (공개 팁만) */

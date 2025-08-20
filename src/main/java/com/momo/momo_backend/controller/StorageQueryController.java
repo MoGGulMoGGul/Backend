@@ -55,21 +55,21 @@ public class StorageQueryController {
     }
 
     // 특정 그룹의 보관함 목록 조회 API
-    @GetMapping("/group/{groupId}") // 엔드포인트: /api/query/storage/group/{groupId}
+    @GetMapping("/group/{groupNo}") // 엔드포인트: /api/query/storage/group/{groupId}
     public ResponseEntity<?> getGroupStorages(
-            @PathVariable Long groupId,
+            @PathVariable Long groupNo,
             @AuthenticationPrincipal CustomUserDetails userDetails) { // 인증된 사용자 정보 필요
-        log.info("그룹 보관함 목록 조회 요청 - 그룹 ID: {}, 요청 사용자: {}", groupId, userDetails.getUsername());
+        log.info("그룹 보관함 목록 조회 요청 - 그룹 ID: {}, 요청 사용자: {}", groupNo, userDetails.getUsername());
         try {
             Long requestingUserNo = userDetails.getUser().getNo(); // 현재 로그인한 사용자 번호
-            List<Storage> groupStorages = storageQueryService.findGroupStoragesByGroup(groupId, requestingUserNo);
+            List<Storage> groupStorages = storageQueryService.findGroupStoragesByGroup(groupNo, requestingUserNo);
 
             // Storage 엔티티 리스트를 GroupStorageResponse DTO 리스트로 변환
             List<GroupStorageResponse> responseList = groupStorages.stream()
                     .map(GroupStorageResponse::from)
                     .collect(Collectors.toList());
 
-            log.info("그룹 보관함 목록 조회 성공 - 그룹 ID: {}, 조회된 보관함 수: {}", groupId, responseList.size());
+            log.info("그룹 보관함 목록 조회 성공 - 그룹 ID: {}, 조회된 보관함 수: {}", groupNo, responseList.size());
             return ResponseEntity.ok(responseList); // 200 OK 응답
         } catch (IllegalArgumentException e) {
             log.error("그룹 보관함 목록 조회 실패: {}", e.getMessage());

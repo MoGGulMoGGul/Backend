@@ -31,9 +31,9 @@ public class StorageQueryService {
     }
 
     // 그룹 보관함 목록 조회
-    public List<Storage> findGroupStoragesByGroup(Long groupId, Long requestingUserNo) {
+    public List<Storage> findGroupStoragesByGroup(Long groupNo, Long requestingUserNo) {
         // 1. 그룹 존재 여부 확인
-        Group group = groupRepository.findById(groupId)
+        Group group = groupRepository.findById(groupNo)
                 .orElseThrow(() -> new IllegalArgumentException("그룹이 존재하지 않습니다."));
 
         // 2. 요청하는 사용자 존재 여부 확인
@@ -47,6 +47,6 @@ public class StorageQueryService {
         }
 
         // 4. 해당 그룹에 속한 모든 보관함 조회
-        return storageRepository.findAllByGroup_No(groupId);
+        return storageRepository.findAllByGroup_No(groupNo);
     }
 }

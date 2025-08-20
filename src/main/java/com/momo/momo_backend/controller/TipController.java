@@ -54,7 +54,7 @@ public class TipController {
     public ResponseEntity<?> registerTip(@RequestBody TipRegisterRequest request,
                                          @AuthenticationPrincipal CustomUserDetails userDetails) {
         log.info("꿀팁 등록 요청 - 꿀팁 ID: {}, 보관함 ID: {}, 공개 여부: {}, 사용자: {}",
-                request.getTipId(), request.getStorageId(), request.getIsPublic(), userDetails.getUsername());
+                request.getTipNo(), request.getStorageNo(), request.getIsPublic(), userDetails.getUsername());
         try {
             Long userNo = userDetails.getUser().getNo(); // 등록하는 사용자 (팁 소유권 검증에 사용)
             TipResponse updatedTip = tipService.registerTip(request, userNo);

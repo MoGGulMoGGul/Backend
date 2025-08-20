@@ -20,10 +20,10 @@ public class BookmarkController {
     private final BookmarkService bookmarkService;
 
     // 즐겨찾기 발생 시 알람용
-    @PostMapping("/{tipId}")
-    public ResponseEntity<Void> bookmarkTip(@PathVariable Long tipId,
+    @PostMapping("/{tipNo}")
+    public ResponseEntity<Void> bookmarkTip(@PathVariable Long tipNo,
                                             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        bookmarkService.addBookmark(tipId, userDetails.getUser());
+        bookmarkService.addBookmark(tipNo, userDetails.getUser());
         return ResponseEntity.ok().build();
     } // 메서드 닫는 중괄호 추가
 
