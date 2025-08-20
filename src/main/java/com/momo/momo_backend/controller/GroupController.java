@@ -61,16 +61,16 @@ public class GroupController {
     }
 
     // 그룹 멤버 초대 API (여러 명 동시 초대 가능)
-    @PostMapping("/{groupId}/invite")
+    @PostMapping("/{groupNo}/invite")
     public ResponseEntity<?> inviteGroupMember(
-            @PathVariable Long groupId,
+            @PathVariable Long groupNo,
             @RequestBody GroupInviteRequest request, // userLoginIds 목록을 받음
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         log.info("그룹 멤버 초대 요청 - 그룹 ID: {}, 초대할 사용자 아이디 목록: {}, 초대하는 사용자: {}",
-                groupId, request.getUserLoginIds(), userDetails.getUsername());
+                groupNo, request.getUserLoginIds(), userDetails.getUsername());
         try {
             Long inviterUserNo = userDetails.getUser().getNo();
-            List<String> results = groupService.inviteMembers(groupId, request, inviterUserNo);
+            List<String> results = groupService.inviteMembers(groupNo, request, inviterUserNo);
 
             return ResponseEntity.ok(results);
         } catch (IllegalArgumentException e) {
@@ -101,20 +101,20 @@ public class GroupController {
     }
 
     // 그룹 멤버 나가기 API
-    @DeleteMapping("/{groupId}/leave") // 엔드포인트: /api/groups/{groupId}/leave
+    @DeleteMapping("/{groupNo}/leave") // 엔드포인트: /api/groups/{groupId}/leave
     public ResponseEntity<?> leaveGroup(
-            @PathVariable Long groupId,
+            @PathVariable Long groupNo,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        log.info("그룹 멤버 나가기 요청 - 그룹 ID: {}, 사용자: {}", groupId, userDetails.getUsername());
+        log.info("그룹 멤버 나가기 요청 - 그룹 ID: {}, 사용자: {}", groupNo, userDetails.getUsername());
         try {
             Long userNo = userDetails.getUser().getNo(); // 현재 로그인한 사용자 번호
-            groupService.leaveGroup(groupId, userNo);
+            groupService.leaveGroup(groupNo, userNo);
 
             MessageResponse response = MessageResponse.builder()
                     .message("그룹에서 나갔습니다.")
                     .build();
 
-            log.info("그룹 멤버 나가기 성공 - 그룹 ID: {}, 사용자: {}", groupId, userNo);
+            log.info("그룹 멤버 나가기 성공 - 그룹 ID: {}, 사용자: {}", groupNo, userNo);
             return ResponseEntity.ok(response); // 200 OK 응답
         } catch (IllegalArgumentException e) {
             log.error("그룹 멤버 나가기 실패: {}", e.getMessage());
@@ -136,20 +136,20 @@ public class GroupController {
     }
 
     // 그룹 멤버 조회 API
-    @GetMapping("/{groupId}/members")
+    @GetMapping("/{groupNo}/members")
     public ResponseEntity<?> getGroupMembers(
-            @PathVariable Long groupId,
+            @PathVariable Long groupNo,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        log.info("그룹 멤버 조회 요청 - 그룹 ID: {}, 요청 사용자: {}", groupId, userDetails.getUsername());
+        log.info("그룹 멤버 조회 요청 - 그룹 ID: {}, 요청 사용자: {}", groupNo, userDetails.getUsername());
         try {
             Long requestingUserNo = userDetails.getUser().getNo(); // 요청하는 사용자 번호
-            List<User> members = groupService.getGroupMembers(groupId, requestingUserNo);
+            List<User> members = groupService.getGroupMembers(groupNo, requestingUserNo);
 
             List<GroupMemberResponse> responseList = members.stream()
                     .map(GroupMemberResponse::from)
                     .collect(Collectors.toList());
 
-            log.info("그룹 멤버 조회 성공 - 그룹 ID: {}, 조회된 멤버 수: {}", groupId, responseList.size());
+            log.info("그룹 멤버 조회 성공 - 그룹 ID: {}, 조회된 멤버 수: {}", groupNo, responseList.size());
             return ResponseEntity.ok(responseList);
         } catch (IllegalArgumentException e) {
             log.error("그룹 멤버 조회 실패: {}", e.getMessage());
@@ -209,22 +209,22 @@ public class GroupController {
     }
 
     // 그룹명 수정 API
-    @PutMapping("/{groupId}/name") // 엔드포인트: /api/groups/{groupId}/name
+    @PutMapping("/{groupNo}/name") // 엔드포인트: /api/groups/{groupId}/name
     public ResponseEntity<?> updateGroupName(
-            @PathVariable Long groupId,
+            @PathVariable Long groupNo,
             @RequestBody GroupUpdateRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         log.info("그룹명 수정 요청 - 그룹 ID: {}, 새 그룹명: {}, 요청 사용자: {}",
-                groupId, request.getName(), userDetails.getUsername());
+                groupNo, request.getName(), userDetails.getUsername());
         try {
             Long requestingUserNo = userDetails.getUser().getNo();
-            Group updatedGroup = groupService.updateGroupName(groupId, request, requestingUserNo);
+            Group updatedGroup = groupService.updateGroupName(groupNo, request, requestingUserNo);
 
             MessageResponse response = MessageResponse.builder()
                     .message("그룹명이 성공적으로 수정되었습니다: " + updatedGroup.getName())
                     .build();
 
-            log.info("그룹명 수정 성공 - 그룹 ID: {}, 새 그룹명: {}", groupId, updatedGroup.getName());
+            log.info("그룹명 수정 성공 - 그룹 ID: {}, 새 그룹명: {}", groupNo, updatedGroup.getName());
             return ResponseEntity.ok(response); // 200 OK 응답
         } catch (IllegalArgumentException e) {
             log.error("그룹명 수정 실패: {}", e.getMessage());

@@ -60,10 +60,10 @@ public class TipSearchService {
     }
 
     /* ============================ Group ============================ */
-    public List<TipResponse> searchGroup(Long groupId, Long requestingUserNo,
+    public List<TipResponse> searchGroup(Long groupNo, Long requestingUserNo,
                                          String keyword, String mode, int page, int size) {
 
-        Group group = groupRepository.findById(groupId)
+        Group group = groupRepository.findById(groupNo)
                 .orElseThrow(() -> new IllegalArgumentException("그룹이 존재하지 않습니다."));
         User requester = userRepository.findById(requestingUserNo)
                 .orElseThrow(() -> new IllegalArgumentException("요청 사용자가 존재하지 않습니다."));
@@ -78,20 +78,20 @@ public class TipSearchService {
               JOIN t.storageTips st
               JOIN st.storage s
               JOIN FETCH t.user u
-            WHERE s.group.no = :groupId
+            WHERE s.group.no = :groupNo
         """;
         var params = new HashMap<String, Object>();
-        params.put("groupId", groupId);
+        params.put("groupNo", groupNo);
         String jpql = appendKeywordClause(base, "t", keyword, mode, params)
                 + " ORDER BY t.createdAt DESC";
         return queryTips(jpql, params, page, size);
     }
 
     /* ============================ Storage ============================ */
-    public List<TipResponse> searchStorage(Long storageId, Long requestingUserNo,
+    public List<TipResponse> searchStorage(Long storageNo, Long requestingUserNo,
                                            String keyword, String mode, int page, int size) {
 
-        Storage storage = storageRepository.findById(storageId)
+        Storage storage = storageRepository.findById(storageNo)
                 .orElseThrow(() -> new IllegalArgumentException("보관함이 존재하지 않습니다."));
         User requester = userRepository.findById(requestingUserNo)
                 .orElseThrow(() -> new IllegalArgumentException("요청 사용자가 존재하지 않습니다."));
@@ -111,10 +111,10 @@ public class TipSearchService {
             FROM StorageTip st
               JOIN st.tip t
               JOIN FETCH t.user u
-            WHERE st.storage.no = :storageId
+            WHERE st.storage.no = :storageNo
         """;
         var params = new HashMap<String, Object>();
-        params.put("storageId", storageId);
+        params.put("storageNo", storageNo);
         String jpql = appendKeywordClause(base, "t", keyword, mode, params)
                 + " ORDER BY t.createdAt DESC";
         return queryTips(jpql, params, page, size);

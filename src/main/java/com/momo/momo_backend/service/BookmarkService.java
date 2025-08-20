@@ -22,8 +22,8 @@ public class BookmarkService {
     private final StorageRepository storageRepository;
     private final StorageTipRepository storageTipRepository;
 
-    public void addBookmark(Long tipId, User user) {
-        Tip tip = tipRepository.findById(tipId)
+    public void addBookmark(Long tipNo, User user) {
+        Tip tip = tipRepository.findById(tipNo)
                 .orElseThrow(() -> new IllegalArgumentException("해당 꿀팁을 찾을 수 없습니다."));
 
         if (bookmarkRepository.existsByUserAndTip(user, tip)) return;
@@ -61,9 +61,9 @@ public class BookmarkService {
     public void bookmarkAndSaveTip(BookmarkAndSaveRequest request, Long userNo) {
         User user = userRepository.findById(userNo)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
-        Tip tip = tipRepository.findById(request.getTipId())
+        Tip tip = tipRepository.findById(request.getTipNo())
                 .orElseThrow(() -> new IllegalArgumentException("꿀팁을 찾을 수 없습니다."));
-        Storage storage = storageRepository.findById(request.getStorageId())
+        Storage storage = storageRepository.findById(request.getStorageNo())
                 .orElseThrow(() -> new IllegalArgumentException("보관함을 찾을 수 없습니다."));
 
         // 보관함이 요청한 사용자의 소유인지 확인

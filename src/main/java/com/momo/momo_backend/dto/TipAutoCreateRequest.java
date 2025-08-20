@@ -7,5 +7,5 @@ import lombok.Setter;
 @Setter
 public class TipAutoCreateRequest {
     private String url;
-    private Long storageId; // 꿀팁을 저장할 보관함 ID
+    private Long storageNo; // 꿀팁을 저장할 보관함 ID
 }

@@ -9,7 +9,7 @@ import java.util.List;
 @Getter
 @Builder
 public class WeeklyRankingResponse {
-    private Long tipId;
+    private Long tipNo;
     private String title;
     private String thumbnailUrl;
     private Long userNo;
@@ -20,7 +20,7 @@ public class WeeklyRankingResponse {
     // Tip 엔티티와 즐겨찾기 수를 받아 DTO를 생성하는 정적 팩토리 메서드
     public static WeeklyRankingResponse from(Tip tip, Long weeklyBookmarkCount) {
         return WeeklyRankingResponse.builder()
-                .tipId(tip.getNo())
+                .tipNo(tip.getNo())
                 .title(tip.getTitle())
                 .thumbnailUrl(tip.getThumbnailUrl())
                 .userNo(tip.getUser().getNo())

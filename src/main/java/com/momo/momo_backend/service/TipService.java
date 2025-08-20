@@ -92,7 +92,7 @@ public class TipService {
     // 꿀팁 등록 (생성된 팁을 최종 보관함에 연결 및 공개 여부 설정)
     @Transactional
     public TipResponse registerTip(TipRegisterRequest request, Long userNo) {
-        Tip tip = tipRepository.findById(request.getTipId())
+        Tip tip = tipRepository.findById(request.getTipNo())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 팁입니다."));
 
         // 팁 소유권 검증
@@ -187,7 +187,7 @@ public class TipService {
         }
 
 
-        Storage storage = storageRepository.findById(request.getStorageId())
+        Storage storage = storageRepository.findById(request.getStorageNo())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 보관함입니다."));
 
         // 보관함 소유권 검증 (개인 보관함 또는 그룹 보관함 멤버 확인)
@@ -304,7 +304,7 @@ public class TipService {
         User user = userRepository.findById(userNo)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
 
-        Storage storage = storageRepository.findById(request.getStorageId())
+        Storage storage = storageRepository.findById(request.getStorageNo())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 보관함입니다."));
 
         // 보관함 소유권 또는 멤버십 검증

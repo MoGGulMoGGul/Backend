@@ -20,8 +20,8 @@ public class FollowService {
     private final NotificationRepository notificationRepository;
 
     @Transactional
-    public void followUser(Long followerId, String followeeLoginId) {
-        User follower = userRepository.findById(followerId)
+    public void followUser(Long followerNo, String followeeLoginId) {
+        User follower = userRepository.findById(followerNo)
                 .orElseThrow(() -> new IllegalArgumentException("팔로우 요청자를 찾을 수 없습니다."));
 
         User following = userRepository.findByLoginId(followeeLoginId)
@@ -55,8 +55,8 @@ public class FollowService {
 
     // 팔로우 취소 메서드 추가
     @Transactional
-    public void unfollowUser(Long followerId, String followeeLoginId) {
-        User follower = userRepository.findById(followerId)
+    public void unfollowUser(Long followerNo, String followeeLoginId) {
+        User follower = userRepository.findById(followerNo)
                 .orElseThrow(() -> new IllegalArgumentException("언팔로우 요청자를 찾을 수 없습니다."));
 
         User following = userRepository.findByLoginId(followeeLoginId)

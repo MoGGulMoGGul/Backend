@@ -56,9 +56,9 @@ public class TipQueryController {
     }
 
     // 상세 팁 조회 - 토큰 불필요 (SecurityConfig에서 permitAll)
-    @GetMapping("/{tipId}")
-    public ResponseEntity<TipResponse> getTipDetails(@PathVariable Long tipId) {
-        Tip tip = tipQueryService.getTipDetails(tipId);
+    @GetMapping("/{tipNo}")
+    public ResponseEntity<TipResponse> getTipDetails(@PathVariable Long tipNo) {
+        Tip tip = tipQueryService.getTipDetails(tipNo);
         TipResponse response = TipResponse.from(tip);
         return ResponseEntity.ok(response);
     }
