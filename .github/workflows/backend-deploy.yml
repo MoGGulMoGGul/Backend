@@ -1,4 +1,4 @@
-# .github/workflows/backend-deploy.yml (최종 수정본)
+# .github/workflows/backend-deploy.yml
 
 name: MogulMogul Backend CI/CD
 
@@ -45,30 +45,22 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build -x test
 
-      - name: Deploy to EC2
+      # --- ❗ 여기가 수정된 부분입니다 ---
+      - name: Clean up EC2 before deploying
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            set -e
+            echo "--- Starting cleanup on EC2 ---"
+            # pkill 명령어로 JAR 파일을 실행하는 Java 프로세스를 찾아 종료합니다.
+            # 프로세스가 없어도 오류가 발생하지 않고 메시지를 출력합니다.
+            pkill -f 'momo_backend.*\.jar' && echo "Stopped existing process." || echo "No process to stop."
             
-            # 1. 원격 서버에 타겟 디렉토리가 없으면 생성
-            mkdir -p /home/ubuntu/app/backend
-            
-            # 2. 기존에 실행중인 Spring Boot 프로세스가 있으면 종료
-            PID=$(pgrep -f "momo_backend" || true)
-            if [ -n "$PID" ]; then
-              echo "Stopping existing Spring Boot process: $PID"
-              kill -15 $PID || true
-              sleep 5
-            fi
-            
-            # 3. 이전에 배포된 파일들을 삭제
-            rm -f /home/ubuntu/app/backend/*.jar || true
-            
-            echo "Cleanup complete. Ready for SCP."
+            # 이전 JAR 파일을 삭제합니다. 파일이 없어도 오류가 발생하지 않습니다.
+            rm -f /home/ubuntu/app/backend/*.jar
+            echo "--- Cleanup finished ---"
 
       - name: SCP to transfer file
         uses: appleboy/scp-action@master
@@ -79,17 +71,15 @@ jobs:
           source: "build/libs/*.jar"
           target: "/home/ubuntu/app/backend"
 
-      - name: Execute remote commands
+      - name: Start server on EC2
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            set -e
-            
-            # 4. 백그라운드에서 Spring Boot 애플리케이션 실행
+            echo "--- Starting new process on EC2 ---"
             cd /home/ubuntu/app/backend
+            # nohup으로 백그라운드에서 서버를 실행하고 로그를 backend.log에 저장합니다.
             nohup java -jar *.jar > backend.log 2>&1 &
-            
-            echo "Spring Boot server started."
+            echo "--- Server start command executed ---"
