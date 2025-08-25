@@ -4,8 +4,7 @@ name: MogulMogul Backend CI/CD
 
 on:
   push:
-    branches: [ "main", "master" ] # main 또는 master 브랜치에 push될 때 실행
-    # paths 부분을 삭제했습니다. 이 저장소의 모든 push가 배포 대상입니다.
+    branches: [ "main", "master" ]
 
 jobs:
   build-and-deploy:
@@ -23,12 +22,10 @@ jobs:
 
       - name: Create application.properties
         run: |
-          # 이제 경로가 더 간단해집니다.
           PROPERTIES_PATH="./src/main/resources/application.properties"
           echo "spring.datasource.url=jdbc:postgresql://${{ secrets.RDS_HOSTNAME }}:${{ secrets.RDS_PORT }}/${{ secrets.RDS_DB_NAME }}" > $PROPERTIES_PATH
           echo "spring.datasource.username=${{ secrets.RDS_USERNAME }}" >> $PROPERTIES_PATH
           echo "spring.datasource.password=${{ secrets.RDS_PASSWORD }}" >> $PROPERTIES_PATH
-          # ... (이하 application.properties 내용은 이전과 동일)
           echo "spring.datasource.driver-class-name=org.postgresql.Driver" >> $PROPERTIES_PATH
           echo "spring.jpa.hibernate.ddl-auto=validate" >> $PROPERTIES_PATH
           echo "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect" >> $PROPERTIES_PATH
@@ -42,22 +39,55 @@ jobs:
           echo "cloud.aws.region.static=ap-northeast-2" >> $PROPERTIES_PATH
           echo "cloud.aws.stack.auto=false" >> $PROPERTIES_PATH
 
-
       - name: Grant execute permission for gradlew
-        # 경로에서 'moggulmoggul/backend' 제거
         run: chmod +x ./gradlew
 
       - name: Build with Gradle
-        # 경로에서 'moggulmoggul/backend' 제거
         run: ./gradlew build -x test
 
+      # --- ❗ 여기가 수정된 부분입니다 ---
       - name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # 1. 원격 서버에 타겟 디렉토리가 없으면 생성합니다.
+            mkdir -p /home/ubuntu/app/backend
+            
+            # 2. 기존에 실행중인 Spring Boot 프로세스가 있으면 종료합니다.
+            # pgrep으로 프로세스 ID를 찾고, 있으면 kill 명령어로 종료합니다.
+            PID=$(pgrep -f "momo_backend")
+            if [ -n "$PID" ]; then
+              echo "Stopping existing Spring Boot process: $PID"
+              kill -15 $PID
+              sleep 5
+            fi
+            
+            # 3. 이전에 배포된 파일들을 삭제합니다. (폴더는 유지)
+            rm -rf /home/ubuntu/app/backend/*.jar
+
+      # --- ❗ 여기가 수정된 부분입니다 ---
+      - name: SCP to transfer file
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          # 빌드된 jar 파일 경로 수정
-          source: "./build/libs/*.jar"
+          source: "build/libs/*.jar" # 경로에서 ./ 제거
           target: "/home/ubuntu/app/backend"
-          # strip_components 옵션 제거
+
+      # --- ❗ 여기가 수정된 부분입니다 ---
+      - name: Execute remote commands
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # 4. 백그라운드에서 Spring Boot 애플리케이션을 실행합니다.
+            # nohup을 사용하여 SSH 세션이 끊겨도 프로세스가 계속 실행되도록 합니다.
+            # 로그는 backend.log 파일에 저장됩니다.
+            cd /home/ubuntu/app/backend
+            nohup java -jar *.jar > backend.log 2>&1 &
