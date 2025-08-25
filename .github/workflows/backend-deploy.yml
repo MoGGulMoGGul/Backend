@@ -50,20 +50,15 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # set +e: 명령어 실패 시에도 스크립트가 중단되지 않도록 설정합니다.
-            set +e
-            
-            echo "--- Starting cleanup on EC2 ---"
-            
-            # pkill 명령어로 JAR 파일을 실행하는 Java 프로세스를 찾아 종료합니다.
-            pkill -f 'momo_backend.*\.jar'
-            echo "Process stop command sent (if process existed)."
-            
-            # 이전 JAR 파일을 삭제합니다.
-            rm -f /home/ubuntu/app/backend/*.jar
-            echo "Old JAR files removed (if they existed)."
-            
-            echo "--- Cleanup finished ---"
+            bash -ic "
+              set +e
+              echo '--- Starting cleanup on EC2 ---'
+              pkill -f 'momo_backend.*\.jar'
+              echo 'Process stop command sent (if process existed).'
+              rm -f /home/ubuntu/app/backend/*.jar
+              echo 'Old JAR files removed (if they existed).'
+              echo '--- Cleanup finished ---'
+            "
 
       - name: SCP to transfer file
         uses: appleboy/scp-action@master
@@ -81,7 +76,9 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "--- Starting new process on EC2 ---"
-            cd /home/ubuntu/app/backend
-            nohup java -jar *.jar > backend.log 2>&1 &
-            echo "--- Server start command executed ---"
+            bash -ic "
+              echo '--- Starting new process on EC2 ---'
+              cd /home/ubuntu/app/backend
+              nohup java -jar *.jar > backend.log 2>&1 &
+              echo '--- Server start command executed ---'
+            "
