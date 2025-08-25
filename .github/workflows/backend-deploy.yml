@@ -52,14 +52,18 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          # script_stop: true 옵션 추가
+          script_stop: true
           script: |
             echo "--- Starting cleanup on EC2 ---"
             # pkill 명령어로 JAR 파일을 실행하는 Java 프로세스를 찾아 종료합니다.
-            # 프로세스가 없어도 오류가 발생하지 않고 메시지를 출력합니다.
-            pkill -f 'momo_backend.*\.jar' && echo "Stopped existing process." || echo "No process to stop."
+            pkill -f 'momo_backend.*\.jar'
+            echo "Process stop command sent."
             
-            # 이전 JAR 파일을 삭제합니다. 파일이 없어도 오류가 발생하지 않습니다.
+            # 이전 JAR 파일을 삭제합니다.
             rm -f /home/ubuntu/app/backend/*.jar
+            echo "Old JAR files removed."
+            
             echo "--- Cleanup finished ---"
 
       - name: SCP to transfer file
@@ -80,6 +84,5 @@ jobs:
           script: |
             echo "--- Starting new process on EC2 ---"
             cd /home/ubuntu/app/backend
-            # nohup으로 백그라운드에서 서버를 실행하고 로그를 backend.log에 저장합니다.
             nohup java -jar *.jar > backend.log 2>&1 &
             echo "--- Server start command executed ---"
