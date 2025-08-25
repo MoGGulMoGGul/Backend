@@ -1,4 +1,4 @@
-# Spring Boot 프로젝트 저장소의 .github/workflows/backend-deploy.yml
+# .github/workflows/backend-deploy.yml (최종 수정본)
 
 name: MogulMogul Backend CI/CD
 
@@ -45,7 +45,6 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build -x test
 
-
       - name: Deploy to EC2
         uses: appleboy/ssh-action@master
         with:
@@ -53,18 +52,23 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            set -e
+            
+            # 1. 원격 서버에 타겟 디렉토리가 없으면 생성
             mkdir -p /home/ubuntu/app/backend
             
-            PID=$(pgrep -f "momo_backend")
+            # 2. 기존에 실행중인 Spring Boot 프로세스가 있으면 종료
+            PID=$(pgrep -f "momo_backend" || true)
             if [ -n "$PID" ]; then
               echo "Stopping existing Spring Boot process: $PID"
-              # kill 명령어 뒤에 '|| true'를 추가하여,
-              # 프로세스가 정상적으로 종료되어도(종료코드 143) 오류로 간주하지 않도록 합니다.
               kill -15 $PID || true
               sleep 5
             fi
             
-            rm -rf /home/ubuntu/app/backend/*.jar
+            # 3. 이전에 배포된 파일들을 삭제
+            rm -f /home/ubuntu/app/backend/*.jar || true
+            
+            echo "Cleanup complete. Ready for SCP."
 
       - name: SCP to transfer file
         uses: appleboy/scp-action@master
@@ -72,7 +76,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "build/libs/*.jar" # 경로에서 ./ 제거
+          source: "build/libs/*.jar"
           target: "/home/ubuntu/app/backend"
 
       - name: Execute remote commands
@@ -82,8 +86,10 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # 4. 백그라운드에서 Spring Boot 애플리케이션을 실행합니다.
-            # nohup을 사용하여 SSH 세션이 끊겨도 프로세스가 계속 실행되도록 합니다.
-            # 로그는 backend.log 파일에 저장됩니다.
+            set -e
+            
+            # 4. 백그라운드에서 Spring Boot 애플리케이션 실행
             cd /home/ubuntu/app/backend
             nohup java -jar *.jar > backend.log 2>&1 &
+            
+            echo "Spring Boot server started."
