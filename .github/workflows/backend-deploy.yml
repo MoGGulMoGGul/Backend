@@ -84,7 +84,8 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "build/libs/app.jar"
-          target: "/home/ubuntu/app/backend"
+          target: "/home/ubuntu/app/backend/"
+          strip_components: 2
 
       - name: Verify file transfer on EC2
         uses: appleboy/ssh-action@master
