@@ -1,123 +1,81 @@
-//package com.momo.momo_backend.config;
-//
-//import com.momo.momo_backend.security.JwtAuthenticationFilter;
-//import lombok.RequiredArgsConstructor;
-//import org.springframework.context.annotation.Bean;
-//import org.springframework.context.annotation.Configuration;
-//import org.springframework.security.authentication.AuthenticationManager;
-//import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
-//import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-//import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-//import org.springframework.security.config.http.SessionCreationPolicy;
-//import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-//import org.springframework.security.crypto.password.PasswordEncoder;
-//import org.springframework.security.web.SecurityFilterChain;
-//import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-//
-//@Configuration
-//@RequiredArgsConstructor
-//@EnableMethodSecurity  // @PreAuthorize 등 활성화
-//public class SecurityConfig {
-//
-//    private final JwtAuthenticationFilter jwtAuthenticationFilter;
-//
-//    @Bean
-//    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-//        return http
-//                .csrf(csrf -> csrf.disable())
-//                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-//                .authorizeHttpRequests(auth -> auth
-//                        .requestMatchers(
-//                                "/api/auth/**",         // 로그인/회원가입 허용
-//                                "/swagger-ui/**",
-//                                "/v3/api-docs/**",
-//                                "/api/tips/tag/**",
-//                                "/api/tips/public"
-//                        ).permitAll()
-//                        .requestMatchers("/api/query/**").permitAll()  // 팁 조회 API 허용
-//
-//                        .anyRequest().authenticated()  // 나머지 요청은 인증 필요
-//                )
-//                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-//                .build();
-//    }
-//
-//    @Bean
-//    public PasswordEncoder passwordEncoder() {
-//        return new BCryptPasswordEncoder();  // 비밀번호 암호화
-//    }
-//
-//    @Bean
-//    public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
-//        return configuration.getAuthenticationManager();  // 로그인 인증에 필요
-//    }
-//}
-
 package com.momo.momo_backend.config;
 
+import com.momo.momo_backend.security.CustomUserDetailsService;
 import com.momo.momo_backend.security.JwtAuthenticationFilter;
+import com.momo.momo_backend.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-@Slf4j
 @Configuration
+@EnableWebSecurity
 @RequiredArgsConstructor
-// 일시적으로 Method Security 비활성화해서 테스트
-// @EnableMethodSecurity
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
-
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        log.info("SecurityFilterChain 설정 중...");
-
-        return http
-                .csrf(csrf -> csrf.disable())
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> {
-                    log.info("HTTP 요청 권한 설정 중...");
-                    auth
-                            .requestMatchers(
-                                    "/api/auth/**",         // 로그인/회원가입 허용
-                                    "/swagger-ui/**",
-                                    "/v3/api-docs/**",
-                                    "/api/tips/tag/**",
-                                    "/api/tips/public",     // 공개 팁 조회 허용
-                                    "/api/query/tips/all", // 전체 공개 꿀팁 조회 허용
-                                    "/api/query/tips/{tipNo}",
-                                    "/api/search/tips/public",
-                                    "/api/search/tips/tag/**",// 상세 팁 조회 허용
-                                    "/api/query/tips/{tipNo}", // 상세 팁 조회 허용
-                                    "/api/bookmark/ranking/weekly", // 주간 북마크 랭킹 조회 허용
-                                    "/api/bookmark/user/{userNo}/total-count", // 특정 사용자의 총 북마크 수 조회 허용
-                                    "/api/users/search", // 사용자 아이디 검색 허용
-                                    "/api/query/tips/user/{userNo}", // 특정 사용자 공개 꿀팁 조회 경로 허용 추가
-                                    "/api/search/tips/tag/{tagName}" // 태그 검색 허용
-                            ).permitAll()
-                            .anyRequest().authenticated();  // 나머지 요청은 인증 필요
-                })
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .build();
-    }
+    private final JwtTokenProvider jwtTokenProvider;
+    private final CustomUserDetailsService customUserDetailsService;
+    // RedisTemplate을 주입받기 위한 멤버 변수를 추가합니다.
+    private final RedisTemplate<String, Object> redisTemplate;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();  // 비밀번호 암호화
+        return new BCryptPasswordEncoder();
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
-        return configuration.getAuthenticationManager();  // 로그인 인증에 필요
+    public AuthenticationManager authenticationManager(HttpSecurity http) throws Exception {
+        AuthenticationManagerBuilder authenticationManagerBuilder =
+                http.getSharedObject(AuthenticationManagerBuilder.class);
+        authenticationManagerBuilder.userDetailsService(customUserDetailsService)
+                .passwordEncoder(passwordEncoder());
+        return authenticationManagerBuilder.build();
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+                // CSRF(Cross-Site Request Forgery) 보호 기능을 비활성화합니다.
+                .csrf(csrf -> csrf.disable())
+
+                // 세션 관리를 STATELESS로 설정하여 JWT 인증에 적합하게 만듭니다.
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+                // HTTP 요청에 대한 접근 권한 설정
+                .authorizeHttpRequests(authz -> authz
+                        // 아래에 명시된 API 경로는 인증 없이 누구나 접근 가능하도록 허용합니다.
+                        .requestMatchers(
+                                "/api/auth/**",             // 로그인/회-가입
+                                "/swagger-ui/**",           // Swagger UI
+                                "/v3/api-docs/**",          // Swagger API 문서
+                                "/api/tips/tag/**",
+                                "/api/tips/public",         // 공개 팁 조회
+                                "/api/query/tips/all",      // 전체 공개 꿀팁 조회
+                                "/api/query/tips/{tipNo}",  // 상세 팁 조회
+                                "/api/search/tips/public",  // 공개 팁 검색
+                                "/api/search/tips/tag/**",  // 태그로 공개 팁 검색
+                                "/api/bookmark/ranking/weekly",             // 주간 북마크 랭킹 조회
+                                "/api/bookmark/user/{userNo}/total-count",  // 특정 사용자의 총 북마크 수 조회
+                                "/api/users/search",        // 사용자 아이디 검색
+                                "/api/query/tips/user/{userNo}"             // 특정 사용자 공개 꿀팁 조회
+                        ).permitAll()
+                        // 그 외의 모든 요청은 인증된 사용자만 접근 가능
+                        .anyRequest().authenticated()
+                )
+
+                // JWT 인증 필터를 생성할 때 세 번째 인수로 redisTemplate을 전달
+                .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider, customUserDetailsService, redisTemplate),
+                        UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
     }
 }
