@@ -112,3 +112,4 @@ jobs:
               nohup java -jar app.jar > backend.log 2>&1 &
               echo '--- Server start command executed ---'
             "
+# SCP 액션에서 strip_components 옵션을 2로 설정하여 디렉토리 구조를 제거
