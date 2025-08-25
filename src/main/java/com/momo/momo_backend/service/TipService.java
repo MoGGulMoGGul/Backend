@@ -113,27 +113,24 @@ public class TipService {
                     try {
                         ResponseEntity<Map> summaryResponse = restTemplate.getForEntity(summaryResultUrl, Map.class);
 
-                        // 요약, 제목, 태그, 썸네일 모두 가져옴
                         String finalSummary = (String) summaryResponse.getBody().get("summary");
                         String finalTitle = (String) summaryResponse.getBody().get("title");
                         List<String> finalTags = (List<String>) summaryResponse.getBody().get("tags");
-                        String thumbnailData = (String) summaryResponse.getBody().get("thumbnail_data");
-                        String thumbnailType = (String) summaryResponse.getBody().get("thumbnail_type");
+
+                        // S3 URL을 직접 받도록 수정
+                        String thumbnailUrl = (String) summaryResponse.getBody().get("thumbnail_url");
 
                         if (finalSummary != null && !finalSummary.isEmpty()) {
-                            tip.setContentSummary(finalSummary); // 최종 요약으로 업데이트
+                            tip.setContentSummary(finalSummary);
 
-                            // 사용자가 제목을 입력하지 않았을 경우에만 AI 제목으로 업데이트
                             if (tip.getTitle() == null || tip.getTitle().isEmpty()) {
                                 if (finalTitle != null && !finalTitle.isEmpty()) {
                                     tip.setTitle(finalTitle);
                                 }
                             }
 
-                            // 사용자가 태그를 입력하지 않았을 경우에만 AI 태그로 업데이트
-                            if (tip.getTipTags().isEmpty()) { // 팁에 연결된 태그가 없는 경우
+                            if (tip.getTipTags().isEmpty()) {
                                 if (finalTags != null && !finalTags.isEmpty()) {
-                                    // 기존 태그 삭제 후 새로운 태그 추가
                                     for (String tagName : finalTags) {
                                         Tag tag = tagRepository.findByName(tagName)
                                                 .orElseGet(() -> tagRepository.save(Tag.builder().name(tagName).build()));
@@ -144,29 +141,17 @@ public class TipService {
                                 }
                             }
 
-                            // 썸네일 URL 업데이트
-                            if (thumbnailData != null) {
-                                if ("image".equals(thumbnailType)) {
-                                    tip.setThumbnailUrl("data:image/png;base64," + thumbnailData);
-                                } else if ("redirect".equals(thumbnailType)) {
-                                    tip.setThumbnailUrl(thumbnailData);
-                                }
+                            // 썸네일 URL을 그대로 저장
+                            if (thumbnailUrl != null && !thumbnailUrl.isEmpty()) {
+                                tip.setThumbnailUrl(thumbnailUrl);
                             }
-                            break; // 성공했으므로 루프 종료
+                            break;
                         } else {
                             tip.setContentSummary("요약 내용이 아직 준비되지 않았거나 비어 있습니다.");
                             break;
                         }
                     } catch (HttpClientErrorException e) {
-                        if (e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
-                            try {
-                                Thread.sleep(retryDelayMs * (i + 1));
-                            } catch (InterruptedException ie) {
-                                Thread.currentThread().interrupt();
-                                tip.setContentSummary("요약 조회 중단: " + ie.getMessage());
-                                break;
-                            }
-                        } else if (e.getStatusCode() == HttpStatus.ACCEPTED) {
+                        if (e.getStatusCode() == HttpStatus.ACCEPTED) {
                             try {
                                 Thread.sleep(retryDelayMs);
                             } catch (InterruptedException ie) {
@@ -190,31 +175,27 @@ public class TipService {
         Storage storage = storageRepository.findById(request.getStorageNo())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 보관함입니다."));
 
-        // 보관함 소유권 검증 (개인 보관함 또는 그룹 보관함 멤버 확인)
-        if (storage.getGroup() != null) { // 그룹 보관함
+        if (storage.getGroup() != null) {
             boolean isGroupMember = groupMemberRepository.existsByGroupAndUser(storage.getGroup(), tip.getUser());
             if (!isGroupMember) {
                 throw new AccessDeniedException("그룹 보관함에 팁을 등록하려면 해당 그룹의 멤버여야 합니다.");
             }
-        } else { // 개인 보관함
+        } else {
             if (!storage.getUser().getNo().equals(userNo)) {
                 throw new AccessDeniedException("선택한 보관함은 현재 로그인한 사용자의 소유가 아닙니다.");
             }
         }
 
-        // StorageTip 엔티티 생성 및 저장
         StorageTip storageTip = StorageTip.builder()
                 .tip(tip)
                 .storage(storage)
                 .build();
         storageTipRepository.save(storageTip);
 
-        // 꿀팁의 공개 여부 및 업데이트 시간 설정
         tip.setIsPublic(request.getIsPublic());
         tip.setUpdatedAt(LocalDateTime.now());
-        Tip updatedTip = tipRepository.save(tip); // 팁 업데이트
+        Tip updatedTip = tipRepository.save(tip);
 
-        // 알림 전송 (팁이 최종 등록될 때)
         notifyFollowers(updatedTip);
         notifyGroupMembers(updatedTip);
 
@@ -397,17 +378,9 @@ public class TipService {
                     result.put("summary", body.getOrDefault("summary", "요약 정보 없음"));
                     result.put("tags", body.getOrDefault("tags", Collections.emptyList()));
 
-                    String thumbnailData = (String) body.get("thumbnail_data");
-                    String thumbnailType = (String) body.get("thumbnail_type");
-                    String thumbnailUrl = null;
-                    if (thumbnailData != null) {
-                        if ("image".equals(thumbnailType)) {
-                            thumbnailUrl = "data:image/png;base64," + thumbnailData;
-                        } else if ("redirect".equals(thumbnailType)) {
-                            thumbnailUrl = thumbnailData;
-                        }
-                    }
-                    result.put("thumbnailUrl", thumbnailUrl);
+                    // 이제 thumbnailUrl을 직접 받아서 사용합니다.
+                    result.put("thumbnailUrl", body.get("thumbnail_url"));
+
                     return result;
                 }
             } catch (HttpClientErrorException e) {

@@ -1,0 +1,63 @@
+# Spring Boot 프로젝트 저장소의 .github/workflows/backend-deploy.yml
+
+name: MogulMogul Backend CI/CD
+
+on:
+  push:
+    branches: [ "main", "master" ] # main 또는 master 브랜치에 push될 때 실행
+    # paths 부분을 삭제했습니다. 이 저장소의 모든 push가 배포 대상입니다.
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Create application.properties
+        run: |
+          # 이제 경로가 더 간단해집니다.
+          PROPERTIES_PATH="./src/main/resources/application.properties"
+          echo "spring.datasource.url=jdbc:postgresql://${{ secrets.RDS_HOSTNAME }}:${{ secrets.RDS_PORT }}/${{ secrets.RDS_DB_NAME }}" > $PROPERTIES_PATH
+          echo "spring.datasource.username=${{ secrets.RDS_USERNAME }}" >> $PROPERTIES_PATH
+          echo "spring.datasource.password=${{ secrets.RDS_PASSWORD }}" >> $PROPERTIES_PATH
+          # ... (이하 application.properties 내용은 이전과 동일)
+          echo "spring.datasource.driver-class-name=org.postgresql.Driver" >> $PROPERTIES_PATH
+          echo "spring.jpa.hibernate.ddl-auto=validate" >> $PROPERTIES_PATH
+          echo "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect" >> $PROPERTIES_PATH
+          echo "spring.jpa.properties.hibernate.jdbc.time_zone=Asia/Seoul" >> $PROPERTIES_PATH
+          echo "jwt.secret=${{ secrets.JWT_SECRET_KEY }}" >> $PROPERTIES_PATH
+          echo "spring.data.redis.host=${{ secrets.REDIS_HOST }}" >> $PROPERTIES_PATH
+          echo "spring.data.redis.port=${{ secrets.REDIS_PORT }}" >> $PROPERTIES_PATH
+          echo "cloud.aws.credentials.access-key=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $PROPERTIES_PATH
+          echo "cloud.aws.credentials.secret-key=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $PROPERTIES_PATH
+          echo "cloud.aws.s3.bucket=${{ secrets.AWS_S3_BUCKET_NAME }}" >> $PROPERTIES_PATH
+          echo "cloud.aws.region.static=ap-northeast-2" >> $PROPERTIES_PATH
+          echo "cloud.aws.stack.auto=false" >> $PROPERTIES_PATH
+
+
+      - name: Grant execute permission for gradlew
+        # 경로에서 'moggulmoggul/backend' 제거
+        run: chmod +x ./gradlew
+
+      - name: Build with Gradle
+        # 경로에서 'moggulmoggul/backend' 제거
+        run: ./gradlew build -x test
+
+      - name: Deploy to EC2
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          # 빌드된 jar 파일 경로 수정
+          source: "./build/libs/*.jar"
+          target: "/home/ubuntu/app/backend"
+          # strip_components 옵션 제거
