@@ -110,7 +110,6 @@ public class AuthService {
     }
 
     /* -------------------------- 로그인 -------------------------- */
-    @Transactional
     public LoginResponse login(LoginRequest request) {
         UserCredential credential = credentialRepository.findByLoginId(request.getId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
@@ -119,18 +118,17 @@ public class AuthService {
             throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
         }
 
+        User user = credential.getUser();
+
         String accessToken = jwtTokenProvider.createAccessToken(credential.getLoginId());
         String refreshToken = jwtTokenProvider.createRefreshToken(credential.getLoginId());
 
-        // Redis에 유효한 Refresh Token 저장 (Key: "RT:{userId}", Value: refreshToken)
-        redisTemplate.opsForValue().set(
-                "RT:" + credential.getLoginId(),
-                refreshToken,
-                jwtTokenProvider.getRefreshTokenValidity(),
-                TimeUnit.MILLISECONDS
-        );
-
-        return new LoginResponse(accessToken, refreshToken);
+        // ✅ 응답에 userNo 포함
+        return LoginResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .userNo(user.getNo())
+                .build();
     }
 
     /* -------------------------- 회원탈퇴 -------------------------- */
