@@ -39,12 +39,28 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<LoginResponse> refresh(@RequestHeader("Authorization") String refreshToken) {
-        String userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
-        String newAccessToken = jwtTokenProvider.createAccessToken(userId);
-        String newRefreshToken = jwtTokenProvider.createRefreshToken();
+    public ResponseEntity<LoginResponse> refresh(@RequestHeader("Authorization") String refreshHeader) {
+        // "Bearer ..." 허용
+        if (!jwtTokenProvider.validateToken(refreshHeader)) {
+            return ResponseEntity.badRequest().build();
+        }
+        Long userNo = jwtTokenProvider.getUserNo(refreshHeader);
+        String loginId = jwtTokenProvider.getUserIdFromToken(refreshHeader);
 
-        return ResponseEntity.ok(new LoginResponse(newAccessToken, newRefreshToken));
+        if (userNo == null || loginId == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        String newAccessToken = jwtTokenProvider.createAccessToken(userNo, loginId);
+        String newRefreshToken = jwtTokenProvider.createRefreshToken(userNo, loginId);
+
+        return ResponseEntity.ok(
+                LoginResponse.builder()
+                        .accessToken(newAccessToken)
+                        .refreshToken(newRefreshToken)
+                        .userNo(userNo) // 원하면 생략 가능
+                        .build()
+        );
     }
 
     @GetMapping("/check-id")

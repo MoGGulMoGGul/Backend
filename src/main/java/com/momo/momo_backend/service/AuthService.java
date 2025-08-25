@@ -57,10 +57,24 @@ public class AuthService {
             throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
         }
 
-        String accessToken  = jwtTokenProvider.createAccessToken(credential.getLoginId());
-        String refreshToken = jwtTokenProvider.createRefreshToken();
+        User user = credential.getUser();
 
-        return new LoginResponse(accessToken, refreshToken);
+        // access: subject=loginId, claim=userNo
+        String accessToken = jwtTokenProvider.createAccessToken(
+                user.getNo(),
+                credential.getLoginId()
+        );
+        // refresh: subject=loginId, claim=userNo  ← 재발급시 파싱 위해 동일 정보 포함
+        String refreshToken = jwtTokenProvider.createRefreshToken(
+                user.getNo(),
+                credential.getLoginId()
+        );
+
+        return LoginResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .userNo(user.getNo())
+                .build();
     }
 
     /* -------------------------- 회원탈퇴 -------------------------- */

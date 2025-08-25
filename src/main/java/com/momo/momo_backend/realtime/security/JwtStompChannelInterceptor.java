@@ -28,6 +28,7 @@ public class JwtStompChannelInterceptor implements ChannelInterceptor {
         if (acc == null) return message;
 
         if (StompCommand.CONNECT.equals(acc.getCommand())) {
+            // 1) 토큰 추출
             String token = resolveBearer(getFirstNativeHeader(acc, "Authorization"));
             if (!StringUtils.hasText(token)) {
                 token = resolveBearer(getFirstNativeHeader(acc, "authorization"));
@@ -36,20 +37,33 @@ public class JwtStompChannelInterceptor implements ChannelInterceptor {
                 throw new IllegalArgumentException("Authorization header missing on STOMP CONNECT");
             }
 
-            Principal principal;
-            if (jwtTokenProvider.validateToken(token)) {
-                var authentication = jwtTokenProvider.getAuthentication(token);
-                if (authentication != null && authentication.getPrincipal() instanceof CustomUserDetails cud) {
-                    String nameForUserDest = String.valueOf(cud.getNo()); // or cud.getId()
-                    principal = new UsernamePasswordAuthenticationToken(
-                            nameForUserDest, null, authentication.getAuthorities());
-                } else {
-                    String subject = jwtTokenProvider.getUserPk(token); // 구현에 맞게
-                    principal = new UsernamePasswordAuthenticationToken(subject, null, List.of());
-                }
-            } else {
+            if (!jwtTokenProvider.validateToken(token)) {
                 throw new IllegalArgumentException("Invalid JWT on STOMP CONNECT");
             }
+
+            // 2) Principal 이름을 "userNo" 문자열로 고정
+            String nameForUserDest = null;
+
+            // 우선 Authentication을 뽑을 수 있으면 활용
+            try {
+                var auth = jwtTokenProvider.getAuthentication(token);
+                if (auth != null && auth.getPrincipal() instanceof CustomUserDetails cud) {
+                    // CustomUserDetails 에 getNo()가 없으므로, 엔티티 통해 조회
+                    if (cud.getUser() != null) {
+                        nameForUserDest = String.valueOf(cud.getUser().getNo());
+                    }
+                }
+            } catch (Throwable ignore) { /* fallback 아래로 */ }
+
+            // fallback: 토큰에서 userNo 직접 추출
+            if (!StringUtils.hasText(nameForUserDest)) {
+                Long userNo = jwtTokenProvider.getUserNo(token); // 아래 B-2 메서드 추가
+                nameForUserDest = String.valueOf(userNo);
+            }
+
+            Principal principal = new UsernamePasswordAuthenticationToken(
+                    nameForUserDest, null, null
+            );
             acc.setUser(principal);
         }
         return message;
@@ -61,7 +75,6 @@ public class JwtStompChannelInterceptor implements ChannelInterceptor {
     }
     private static String resolveBearer(String header) {
         if (!StringUtils.hasText(header)) return null;
-        if (header.startsWith("Bearer ")) return header.substring(7);
-        return header;
+        return header.startsWith("Bearer ") ? header.substring(7) : header;
     }
 }
