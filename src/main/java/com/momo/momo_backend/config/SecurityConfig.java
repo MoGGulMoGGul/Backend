@@ -24,7 +24,6 @@ public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final CustomUserDetailsService customUserDetailsService;
-    // RedisTemplate을 주입받기 위한 멤버 변수를 추가합니다.
     private final RedisTemplate<String, Object> redisTemplate;
 
     @Bean
