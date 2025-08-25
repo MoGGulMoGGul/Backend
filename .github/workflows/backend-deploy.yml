@@ -46,7 +46,8 @@ jobs:
       - name: List and rename JAR file
         run: |
           ls -la build/libs/
-          mv build/libs/*.jar build/libs/app.jar
+          # 두 개의 JAR 파일 중 '-plain'이 없는 실행 가능한 JAR 파일만 골라서 이름을 변경합니다.
+          mv $(ls build/libs/*.jar | grep -v plain) build/libs/app.jar
 
       - name: Prepare EC2 directories
         uses: appleboy/ssh-action@master
