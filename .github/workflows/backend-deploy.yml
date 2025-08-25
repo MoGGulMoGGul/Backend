@@ -43,6 +43,20 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build -x test
 
+      - name: List and rename JAR file
+        run: |
+          ls -la build/libs/
+          mv build/libs/*.jar build/libs/app.jar
+
+      - name: Prepare EC2 directories
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            mkdir -p /home/ubuntu/app/backend
+
       - name: Clean up EC2 before deploying
         uses: appleboy/ssh-action@master
         with:
@@ -53,7 +67,7 @@ jobs:
             bash -ic "
               set +e
               echo '--- Starting cleanup on EC2 ---'
-              pkill -f 'momo_backend.*\.jar'
+              pkill -f 'app.jar'
               echo 'Process stop command sent (if process existed).'
               rm -f /home/ubuntu/app/backend/*.jar
               echo 'Old JAR files removed (if they existed).'
@@ -66,7 +80,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "build/libs/*.jar"
+          source: "build/libs/app.jar"
           target: "/home/ubuntu/app/backend"
 
       - name: Start server on EC2
@@ -79,6 +93,6 @@ jobs:
             bash -ic "
               echo '--- Starting new process on EC2 ---'
               cd /home/ubuntu/app/backend
-              nohup java -jar *.jar > backend.log 2>&1 &
+              nohup java -jar app.jar > backend.log 2>&1 &
               echo '--- Server start command executed ---'
             "
