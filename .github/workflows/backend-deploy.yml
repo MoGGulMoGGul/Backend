@@ -1,69 +1,87 @@
-# 워크플로우 이름 설정
-name: Backend Deploy CI/CD
+name: MogulMogul Backend CI/CD
 
-# 워크플로우가 실행될 조건 설정 (main 브랜치에 push될 때)
 on:
   push:
-    branches:
-      - main
+    branches: [ "main", "master" ]
 
 jobs:
   build-and-deploy:
-    # 실행 환경 설정
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 소스 코드 체크아웃
-      - name: Checkout Source Code
+      - name: Checkout Code
         uses: actions/checkout@v3
 
-      # 2. JDK 17 설치
       - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # 3. gradlew 실행 권한 부여
+      - name: Create application.properties
+        run: |
+          PROPERTIES_PATH="./src/main/resources/application.properties"
+          echo "spring.datasource.url=jdbc:postgresql://${{ secrets.RDS_HOSTNAME }}:${{ secrets.RDS_PORT }}/${{ secrets.RDS_DB_NAME }}" > $PROPERTIES_PATH
+          echo "spring.datasource.username=${{ secrets.RDS_USERNAME }}" >> $PROPERTIES_PATH
+          echo "spring.datasource.password=${{ secrets.RDS_PASSWORD }}" >> $PROPERTIES_PATH
+          echo "spring.datasource.driver-class-name=org.postgresql.Driver" >> $PROPERTIES_PATH
+          echo "spring.jpa.hibernate.ddl-auto=validate" >> $PROPERTIES_PATH
+          echo "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect" >> $PROPERTIES_PATH
+          echo "spring.jpa.properties.hibernate.jdbc.time_zone=Asia/Seoul" >> $PROPERTIES_PATH
+          echo "jwt.secret=${{ secrets.JWT_SECRET_KEY }}" >> $PROPERTIES_PATH
+          echo "spring.data.redis.host=${{ secrets.REDIS_HOST }}" >> $PROPERTIES_PATH
+          echo "spring.data.redis.port=${{ secrets.REDIS_PORT }}" >> $PROPERTIES_PATH
+          echo "cloud.aws.credentials.access-key=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $PROPERTIES_PATH
+          echo "cloud.aws.credentials.secret-key=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $PROPERTIES_PATH
+          echo "cloud.aws.s3.bucket=${{ secrets.AWS_S3_BUCKET_NAME }}" >> $PROPERTIES_PATH
+          echo "cloud.aws.region.static=ap-northeast-2" >> $PROPERTIES_PATH
+          echo "cloud.aws.stack.auto=false" >> $PROPERTIES_PATH
+
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
-      # 4. Gradle로 프로젝트 빌드
-      #    -x test 옵션으로 빌드 시 테스트를 스킵합니다.
       - name: Build with Gradle
         run: ./gradlew build -x test
 
-      # 5. 빌드된 JAR 파일을 EC2로 전송
-      - name: Transfer JAR to EC2
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_PRIVATE_KEY }}
-          port: 22
-          source: "build/libs/*.jar"  # 빌드된 JAR 파일 경로
-          target: "/home/ubuntu/app"   # EC2 인스턴스의 배포 디렉토리
-
-      # 6. EC2에 접속하여 배포 스크립트 실행
-      - name: Deploy to EC2 instance
+      - name: Clean up EC2 before deploying
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_PRIVATE_KEY }}
-          port: 22
+          key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "--- Starting deployment on EC2 ---"
+            # set +e: 명령어 실패 시에도 스크립트가 중단되지 않도록 설정합니다.
+            set +e
             
-            # 8080 포트를 사용하고 있는 기존 프로세스 종료
-            sudo fuser -k 8080/tcp || true
-            echo "--- Killed existing process on port 8080 ---"
+            echo "--- Starting cleanup on EC2 ---"
             
-            # 배포 디렉토리로 이동
-            cd /home/ubuntu/app
-            echo "--- Changed directory to /home/ubuntu/app ---"
+            # pkill 명령어로 JAR 파일을 실행하는 Java 프로세스를 찾아 종료합니다.
+            pkill -f 'momo_backend.*\.jar'
+            echo "Process stop command sent (if process existed)."
             
-            # 백그라운드에서 새로운 애플리케이션 실행
-            # 실행 로그는 logfile.log에 저장하여 추후 디버깅에 사용
-            nohup java -jar *.jar > logfile.log 2>&1 &
-            echo "--- Application started successfully ---"
+            # 이전 JAR 파일을 삭제합니다.
+            rm -f /home/ubuntu/app/backend/*.jar
+            echo "Old JAR files removed (if they existed)."
+            
+            echo "--- Cleanup finished ---"
+
+      - name: SCP to transfer file
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "build/libs/*.jar"
+          target: "/home/ubuntu/app/backend"
+
+      - name: Start server on EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "--- Starting new process on EC2 ---"
+            cd /home/ubuntu/app/backend
+            nohup java -jar *.jar > backend.log 2>&1 &
+            echo "--- Server start command executed ---"
