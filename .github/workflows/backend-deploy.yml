@@ -49,31 +49,19 @@ jobs:
           # 두 개의 JAR 파일 중 '-plain'이 없는 실행 가능한 JAR 파일만 골라서 이름을 변경합니다.
           mv $(ls build/libs/*.jar | grep -v plain) build/libs/app.jar
 
-      - name: Prepare EC2 directories
+      - name: Reset EC2 directory
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            # 기존 프로세스 종료
+            pkill -f 'app.jar' || true
+            # 배포 디렉토리 전체 삭제
+            rm -rf /home/ubuntu/app/backend
+            # 배포 디렉토리 새로 생성
             mkdir -p /home/ubuntu/app/backend
-
-      - name: Clean up EC2 before deploying
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            bash -ic "
-              set +e
-              echo '--- Starting cleanup on EC2 ---'
-              pkill -f 'app.jar'
-              echo 'Process stop command sent (if process existed).'
-              rm -f /home/ubuntu/app/backend/*.jar
-              echo 'Old JAR files removed (if they existed).'
-              echo '--- Cleanup finished ---'
-            "
 
       - name: SCP to transfer file
         uses: appleboy/scp-action@master
