@@ -7,6 +7,7 @@ import com.momo.momo_backend.repository.*;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -25,6 +26,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class TipService {
+
+    @Value("${ai.server.url}")
+    private String aiServerUrl;
 
     private final TipRepository tipRepository;
     private final TagRepository tagRepository;
@@ -52,7 +56,7 @@ public class TipService {
 
         // AI 요약 요청 (FastAPI 서버 호출)
         RestTemplate restTemplate = new RestTemplate();
-        String pythonUrl = "http://localhost:8000/async-index/"; // FastAPI 서버 URL
+        String pythonUrl = aiServerUrl + "/async-index/"; // FastAPI 서버 URL
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
@@ -105,7 +109,7 @@ public class TipService {
             String taskId = extractTaskId(tip.getContentSummary());
             if (taskId != null) {
                 RestTemplate restTemplate = new RestTemplate();
-                String summaryResultUrl = "http://localhost:8000/summary-result/" + taskId;
+                String summaryResultUrl = aiServerUrl + "/summary-result/" + taskId;
                 int maxRetries = 5; // 최대 재시도 횟수
                 long retryDelayMs = 2000; // 재시도 간 지연 시간 (2초)
 
@@ -345,7 +349,7 @@ public class TipService {
     // AI 서버에 비동기 작업을 요청하고 Task ID를 받는 메서드
     private String requestAiSummaryTask(String url) {
         RestTemplate restTemplate = new RestTemplate();
-        String pythonApiUrl = "http://localhost:8000/async-index/";
+        String pythonApiUrl = aiServerUrl + "/async-index/";
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
@@ -364,7 +368,7 @@ public class TipService {
     // Task ID로 AI 작업 결과를 폴링하는 메서드
     private Map<String, Object> pollAiSummaryResult(String taskId) {
         RestTemplate restTemplate = new RestTemplate();
-        String resultUrl = "http://localhost:8000/summary-result/" + taskId;
+        String resultUrl = aiServerUrl + "/summary-result/" + taskId;
         int maxRetries = 30; // 최대 30번 시도 (총 60초 대기)
         long pollIntervalMs = 2000; // 2초 간격으로 확인
 
