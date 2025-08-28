@@ -64,8 +64,9 @@ public class SecurityConfig {
                                 "/api/search/tips/tag/**",  // 태그로 공개 팁 검색
                                 "/api/bookmark/ranking/weekly",             // 주간 북마크 랭킹 조회
                                 "/api/bookmark/user/{userNo}/total-count",  // 특정 사용자의 총 북마크 수 조회
-                                "/api/users/search",        // 사용자 아이디 검색
-                                "/api/query/tips/user/{userNo}"             // 특정 사용자 공개 꿀팁 조회
+                                "/api/users/search",                        // 사용자 아이디 검색
+                                "/api/query/tips/user/{userNo}",            // 특정 사용자 공개 꿀팁 조회
+                                "/api/tips/internal/tips/update-from-ai"    // AI 콜백을 위한 경로 추가
                         ).permitAll()
                         // 그 외의 모든 요청은 인증된 사용자만 접근 가능
                         .anyRequest().authenticated()
