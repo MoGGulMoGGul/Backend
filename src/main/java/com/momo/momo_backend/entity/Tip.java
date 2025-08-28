@@ -1,7 +1,12 @@
 package com.momo.momo_backend.entity;
 
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -11,63 +16,52 @@ import java.util.List;
 @Getter
 @Setter
 @NoArgsConstructor
-@AllArgsConstructor
-@Builder
-@Table(name = "tip")
 public class Tip {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long no;  // 꿀팁 식별 번호
+    private Long no;
 
-    // 작성자 (N(o):1 관계)
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_no", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_no")
     private User user;
 
+    private String url;
+    private String title;
     @Column(columnDefinition = "TEXT")
-    private String url;  // 저장할 URL (nullable)
+    private String contentSummary;
+    private String thumbnailUrl;
+    private Boolean isPublic;
 
-    @Column(length = 255)
-    private String title;  // 꿀팁 제목
+    // AI 작업 ID를 저장할 필드 추가
+    private String taskId;
 
-    @Column(name = "content_summary", columnDefinition = "TEXT")
-    private String contentSummary;  // 요약
+    @CreationTimestamp
+    private LocalDateTime createdAt;
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
 
-    @Column(name = "thumbnail_url", columnDefinition = "TEXT")
-    private String thumbnailUrl; // 썸네일 URL 필드
+    @OneToMany(mappedBy = "tip", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Bookmark> bookmarks = new ArrayList<>();
 
-    @Builder.Default
-    @Column(name = "is_public", nullable = false)
-    private Boolean isPublic = true;  // 공개 여부
-
-    @Builder.Default
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
-
-    @Builder.Default
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt = LocalDateTime.now();
-
-    // ========== 연관 관계 ==========
-
-    // 1:N(o) - StorageTip
-    @Builder.Default
     @OneToMany(mappedBy = "tip", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<StorageTip> storageTips = new ArrayList<>();
 
-    // 1:N(o) - Notification
-    @Builder.Default
     @OneToMany(mappedBy = "tip", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Notification> notifications = new ArrayList<>();
 
-    // 1:N(o) - TipTag
-    @Builder.Default
     @OneToMany(mappedBy = "tip", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TipTag> tipTags = new ArrayList<>();
 
-    // 1:N(o) - Bookmark
-    @Builder.Default
-    @OneToMany(mappedBy = "tip", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Bookmark> bookmarks = new ArrayList<>();
+    @Builder
+    public Tip(User user, String url, String title, String contentSummary, String thumbnailUrl, Boolean isPublic, String taskId) {
+        this.user = user;
+        this.url = url;
+        this.title = title;
+        this.contentSummary = contentSummary;
+        this.thumbnailUrl = thumbnailUrl;
+        this.isPublic = isPublic;
+        this.taskId = taskId;
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
 }

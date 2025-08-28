@@ -23,4 +23,7 @@ public interface GroupMemberRepository extends JpaRepository<GroupMember, Long> 
 
     // 특정 그룹의 멤버 수 계산
     int countByGroup(Group group);
+
+    // 그룹 번호와 사용자 번호로 GroupMember 존재 여부 확인
+    boolean existsByGroup_NoAndUser_No(Long groupNo, Long userNo);
 }

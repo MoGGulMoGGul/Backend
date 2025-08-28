@@ -40,192 +40,120 @@ public class TipService {
     private final StorageTipRepository storageTipRepository;
     private final GroupMemberRepository groupMemberRepository; // 그룹 멤버 리포지토리 추가
 
-    // 꿀팁 생성 (AI 요약 요청 및 임시 팁 저장)
+    // 1. 꿀팁 생성: AI에 작업 요청 후 '작업 ID'만 받아서 임시 저장
     @Transactional
     public TipResponse createTip(Long userNo, TipRequest request) {
         User user = userRepository.findById(userNo)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
 
-        Tip tip = new Tip();
-        tip.setUser(user);
-        tip.setUrl(request.getUrl());
-        tip.setTitle(request.getTitle()); // 사용자가 입력한 제목
-        tip.setIsPublic(false); // 생성 단계에서는 기본적으로 비공개 (등록 단계에서 설정)
-        tip.setCreatedAt(LocalDateTime.now());
-        tip.setUpdatedAt(LocalDateTime.now());
-        tip.setContentSummary("요약 생성 중..."); // 초기 상태 메시지
+        // AI 서버에 비동기 작업 요청
+        String taskId = requestAiSummaryTask(request.getUrl());
 
-        // 꿀팁을 먼저 저장하여 ID를 확보
+        // '작업 ID'와 함께 꿀팁 임시 저장
+        Tip tip = Tip.builder()
+                .user(user)
+                .url(request.getUrl())
+                .title("요약 전 제목") // 임시 제목
+                .contentSummary("AI가 요약 생성 중입니다...") // 초기 상태 메시지
+                .isPublic(false)
+                .taskId(taskId) // AI가 반환한 작업 ID 저장
+                .build();
+
         Tip savedTip = tipRepository.save(tip);
-        Long tipId = savedTip.getNo();
 
+        return TipResponse.from(savedTip);
+    }
 
-        // AI 요약 요청 (FastAPI 서버 호출)
+    // AI 서버에 비동기 작업을 요청하고 Task ID를 받는 메서드
+    private String requestAiSummaryTask(String url) {
         RestTemplate restTemplate = new RestTemplate();
-        String pythonUrl = aiServerUrl + "/async-index/"; // FastAPI 서버 URL
+        String pythonApiUrl = aiServerUrl + "/async-index/";
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        // 요청에 tip_id를 추가
-        Map<String, Object> pythonRequest = new HashMap<>();
-        pythonRequest.put("url", request.getUrl());
-        pythonRequest.put("tip_id", tipId);
-
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(pythonRequest, headers);
+        Map<String, String> requestBody = Map.of("url", url);
+        HttpEntity<Map<String, String>> entity = new HttpEntity<>(requestBody, headers);
 
         try {
-            ResponseEntity<Map> pythonResponse = restTemplate.postForEntity(pythonUrl, entity, Map.class);
-            String taskId = (String) pythonResponse.getBody().get("task_id");
-            savedTip.setContentSummary("요약 생성 중... (taskId: " + taskId + ")"); // taskId로 업데이트
-            tipRepository.save(savedTip); // taskId를 포함하여 다시 저장
-        } catch (Exception e) {
-            savedTip.setContentSummary("요약 실패: " + e.getMessage()); // 요약 실패 처리
-            tipRepository.save(savedTip); // 실패 상태 저장
-        }
-
-        // 태그 처리 로직 (생성 단계에서 태그를 받았다면 저장)
-        if (request.getTags() != null && !request.getTags().isEmpty()) {
-            Set<String> uniqueTagNames = new LinkedHashSet<>(request.getTags());
-
-            for (String tagName : uniqueTagNames) {
-                Tag tag = tagRepository.findByName(tagName)
-                        .orElseGet(() -> tagRepository.save(Tag.builder().name(tagName).build()));
-
-                TipTag tipTag = TipTag.builder()
-                        .tip(savedTip)
-                        .tag(tag)
-                        .build();
-                tipTagRepository.save(tipTag);
-                savedTip.getTipTags().add(tipTag);
+            ResponseEntity<Map> response = restTemplate.postForEntity(pythonApiUrl, entity, Map.class);
+            if (response.getBody() != null && response.getBody().containsKey("task_id")) {
+                return (String) response.getBody().get("task_id");
             }
+            throw new RuntimeException("AI 서버로부터 task_id를 받지 못했습니다.");
+        } catch (Exception e) {
+            log.error("AI 작업 요청 실패: {}", e.getMessage());
+            throw new RuntimeException("AI 서버에 작업을 요청하는 데 실패했습니다.");
         }
-
-        return TipResponse.from(savedTip); // 생성된 팁의 기본 정보 반환
     }
 
-    // 꿀팁 등록 (생성된 팁을 최종 보관함에 연결 및 공개 여부 설정)
+    // 2. 꿀팁 등록: AI 작업 완료 여부를 '폴링'하여 확인 후 최종 등록
     @Transactional
     public TipResponse registerTip(TipRegisterRequest request, Long userNo) {
         Tip tip = tipRepository.findById(request.getTipNo())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 팁입니다."));
 
-        // 팁 소유권 검증
         if (!tip.getUser().getNo().equals(userNo)) {
             throw new AccessDeniedException("해당 팁에 대한 등록 권한이 없습니다.");
         }
 
-        // FastAPI 요약 결과 확인 및 업데이트 (재시도 로직 포함)
-        if (tip.getContentSummary() != null && tip.getContentSummary().startsWith("요약 생성 중... (taskId:")) {
-            String taskId = extractTaskId(tip.getContentSummary());
-            if (taskId != null) {
-                RestTemplate restTemplate = new RestTemplate();
-                String summaryResultUrl = aiServerUrl + "/summary-result/" + taskId;
-                int maxRetries = 5; // 최대 재시도 횟수
-                long retryDelayMs = 2000; // 재시도 간 지연 시간 (2초)
+        // AI 작업 결과 폴링
+        Map<String, Object> aiResult = pollAiSummaryResult(tip.getTaskId());
 
-                for (int i = 0; i < maxRetries; i++) {
-                    try {
-                        ResponseEntity<Map> summaryResponse = restTemplate.getForEntity(summaryResultUrl, Map.class);
+        // AI 결과로 꿀팁 정보 업데이트
+        tip.setTitle((String) aiResult.get("title"));
+        tip.setContentSummary((String) aiResult.get("summary"));
+        tip.setThumbnailUrl((String) aiResult.get("thumbnail_url"));
+        tip.setIsPublic(request.getIsPublic());
+        tip.setUpdatedAt(LocalDateTime.now());
 
-                        String finalSummary = (String) summaryResponse.getBody().get("summary");
-                        String finalTitle = (String) summaryResponse.getBody().get("title");
-                        List<String> finalTags = (List<String>) summaryResponse.getBody().get("tags");
+        // 태그 처리
+        updateTagsFromAiResult(tip, (List<String>) aiResult.get("tags"));
 
-                        // S3 URL을 직접 받도록 수정
-                        String thumbnailUrl = (String) summaryResponse.getBody().get("thumbnail_url");
-
-                        if (finalSummary != null && !finalSummary.isEmpty()) {
-                            tip.setContentSummary(finalSummary);
-
-                            if (tip.getTitle() == null || tip.getTitle().isEmpty()) {
-                                if (finalTitle != null && !finalTitle.isEmpty()) {
-                                    tip.setTitle(finalTitle);
-                                }
-                            }
-
-                            if (tip.getTipTags().isEmpty()) {
-                                if (finalTags != null && !finalTags.isEmpty()) {
-                                    for (String tagName : finalTags) {
-                                        Tag tag = tagRepository.findByName(tagName)
-                                                .orElseGet(() -> tagRepository.save(Tag.builder().name(tagName).build()));
-                                        TipTag tipTag = TipTag.builder().tip(tip).tag(tag).build();
-                                        tipTagRepository.save(tipTag);
-                                        tip.getTipTags().add(tipTag);
-                                    }
-                                }
-                            }
-
-                            // 썸네일 URL을 그대로 저장
-                            if (thumbnailUrl != null && !thumbnailUrl.isEmpty()) {
-                                tip.setThumbnailUrl(thumbnailUrl);
-                            }
-                            break;
-                        } else {
-                            tip.setContentSummary("요약 내용이 아직 준비되지 않았거나 비어 있습니다.");
-                            break;
-                        }
-                    } catch (HttpClientErrorException e) {
-                        if (e.getStatusCode() == HttpStatus.ACCEPTED) {
-                            try {
-                                Thread.sleep(retryDelayMs);
-                            } catch (InterruptedException ie) {
-                                Thread.currentThread().interrupt();
-                                tip.setContentSummary("요약 조회 중단: " + ie.getMessage());
-                                break;
-                            }
-                        } else {
-                            tip.setContentSummary("요약 조회 실패: " + e.getMessage());
-                            break;
-                        }
-                    } catch (Exception e) {
-                        tip.setContentSummary("요약 조회 실패: " + e.getMessage());
-                        break;
-                    }
-                }
-            }
-        }
-
-
+        // 보관함에 저장
         Storage storage = storageRepository.findById(request.getStorageNo())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 보관함입니다."));
+        validateStorageAccess(storage, userNo); // 보관함 접근 권한 확인
 
+        StorageTip storageTip = StorageTip.builder().tip(tip).storage(storage).build();
+        storageTipRepository.save(storageTip);
+
+        Tip registeredTip = tipRepository.save(tip);
+
+        // 알림 전송
+        notifyFollowers(registeredTip);
+        notifyGroupMembers(registeredTip);
+
+        return TipResponse.from(registeredTip);
+    }
+
+    private void updateTagsFromAiResult(Tip tip, List<String> tagNames) {
+        // 기존 태그 연결 모두 삭제
+        tipTagRepository.deleteByTipNo(tip.getNo());
+        tip.getTipTags().clear();
+
+        if (tagNames != null && !tagNames.isEmpty()) {
+            Set<String> uniqueTagNames = new LinkedHashSet<>(tagNames);
+            for (String name : uniqueTagNames) {
+                Tag tag = tagRepository.findByName(name)
+                        .orElseGet(() -> tagRepository.save(Tag.builder().name(name).build()));
+                TipTag tt = TipTag.builder().tip(tip).tag(tag).build();
+                tip.getTipTags().add(tt);
+            }
+        }
+    }
+
+    private void validateStorageAccess(Storage storage, Long userNo) {
         if (storage.getGroup() != null) {
-            boolean isGroupMember = groupMemberRepository.existsByGroupAndUser(storage.getGroup(), tip.getUser());
-            if (!isGroupMember) {
-                throw new AccessDeniedException("그룹 보관함에 팁을 등록하려면 해당 그룹의 멤버여야 합니다.");
+            boolean isMember = groupMemberRepository.existsByGroup_NoAndUser_No(storage.getGroup().getNo(), userNo);
+            if (!isMember) {
+                throw new AccessDeniedException("그룹 멤버만 해당 보관함에 등록할 수 있습니다.");
             }
         } else {
             if (!storage.getUser().getNo().equals(userNo)) {
-                throw new AccessDeniedException("선택한 보관함은 현재 로그인한 사용자의 소유가 아닙니다.");
+                throw new AccessDeniedException("자신의 보관함에만 꿀팁을 등록할 수 있습니다.");
             }
         }
-
-        StorageTip storageTip = StorageTip.builder()
-                .tip(tip)
-                .storage(storage)
-                .build();
-        storageTipRepository.save(storageTip);
-
-        tip.setIsPublic(request.getIsPublic());
-        tip.setUpdatedAt(LocalDateTime.now());
-        Tip updatedTip = tipRepository.save(tip);
-
-        notifyFollowers(updatedTip);
-        notifyGroupMembers(updatedTip);
-
-        return TipResponse.from(updatedTip);
     }
-
-    // taskId를 contentSummary에서 추출하는 헬퍼 메서드
-    private String extractTaskId(String contentSummary) {
-        int startIndex = contentSummary.indexOf("taskId:") + "taskId:".length();
-        int endIndex = contentSummary.indexOf(")", startIndex);
-        if (startIndex > -1 && endIndex > -1 && startIndex < endIndex) {
-            return contentSummary.substring(startIndex, endIndex).trim();
-        }
-        return null;
-    }
-
 
     // 팁 수정
     @Transactional
@@ -354,56 +282,6 @@ public class TipService {
         notifyGroupMembers(savedTip);
 
         return TipResponse.from(savedTip);
-    }
-
-    // AI 서버에 비동기 작업을 요청하고 Task ID를 받는 메서드
-    private String requestAiSummaryTask(String url) {
-        RestTemplate restTemplate = new RestTemplate();
-        String pythonApiUrl = aiServerUrl + "/async-index/";
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-
-        Map<String, String> requestBody = Map.of("url", url);
-        HttpEntity<Map<String, String>> entity = new HttpEntity<>(requestBody, headers);
-
-        try {
-            ResponseEntity<Map> response = restTemplate.postForEntity(pythonApiUrl, entity, Map.class);
-            return (String) response.getBody().get("task_id");
-        } catch (Exception e) {
-            log.error("AI 작업 요청 실패: {}", e.getMessage());
-            throw new RuntimeException("AI 서버에 작업을 요청하는 데 실패했습니다.");
-        }
-    }
-
-    @Transactional
-    public void updateTipFromAi(AiResultUpdateRequest request) {
-        Tip tip = tipRepository.findById(request.getTipNo())
-                .orElseThrow(() -> new RuntimeException("꿀팁을 찾을 수 없습니다: " + request.getTipNo()));
-
-        // AI 결과로 꿀팁 정보 업데이트
-        tip.setTitle(request.getTitle());
-        tip.setContentSummary(request.getContentSummary());
-        tip.setThumbnailUrl(request.getThumbnailUrl());
-
-        // 기존 태그 정보 삭제
-        tipTagRepository.deleteAll(tip.getTipTags());
-        tip.getTipTags().clear();
-
-        // 새로운 태그 정보 추가
-        if (request.getTags() != null && !request.getTags().isEmpty()) {
-            for (String tagName : request.getTags()) {
-                // 태그가 존재하면 가져오고, 없으면 새로 생성
-                Tag tag = tagRepository.findByName(tagName)
-                        .orElseGet(() -> tagRepository.save(new Tag(tagName)));
-
-                TipTag tipTag = new TipTag();
-                tipTag.setTip(tip);
-                tipTag.setTag(tag);
-                tip.getTipTags().add(tipTag);
-            }
-        }
-
-        tipRepository.save(tip);
     }
 
     // Task ID로 AI 작업 결과를 폴링하는 메서드

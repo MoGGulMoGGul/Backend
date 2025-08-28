@@ -166,10 +166,4 @@ public class TipController {
         }
     }
 
-    @PostMapping("/internal/tips/update-from-ai")
-    public ResponseEntity<Void> updateTipFromAi(@RequestBody AiResultUpdateRequest request) {
-        tipService.updateTipFromAi(request);
-        return ResponseEntity.ok().build();
-    }
-
 }
