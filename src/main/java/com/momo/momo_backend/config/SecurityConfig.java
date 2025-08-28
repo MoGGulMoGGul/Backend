@@ -88,17 +88,28 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> {
                     log.info("HTTP 요청 권한 설정 중...");
                     auth
+                            // 1) 공개 엔드포인트
                             .requestMatchers(
-                                    "/api/auth/**",         // 로그인/회원가입 허용
+                                    "/api/auth/**",
                                     "/swagger-ui/**",
                                     "/v3/api-docs/**",
                                     "/api/tips/tag/**",
-                                    "/api/tips/public",     // TipController의 공개 팁 조회 허용
-                                    "/api/query/tips/all", // 전체 공개 꿀팁 조회 허용
-                                    "/api/query/tips/{tipId}",
+                                    "/api/tips/public",
+                                    "/api/query/tips/all",     // 전체 공개 목록
+                                    "/api/query/tips/*",       // 상세 (id 한 세그먼트)
                                     "/api/search/tips/public",
-                                    "/api/search/tips/tag/**"// 상세 팁 조회 허용
+                                    "/api/search/tips/tag/**",
+                                    "/api/tips/*",             // TipController 상세
+                                    "/ws/**"                   // STOMP 핸드셰이크
                             ).permitAll()
+
+                            // 2) 보호가 필요한 조회(순서 중요: permitAll 전에 오면 더 안전)
+                            .requestMatchers(
+                                    "/api/query/tips/my",
+                                    "/api/query/tips/storage/**"
+                            ).authenticated()
+
+                            // 3) 나머지는 인증
                             .anyRequest().authenticated();  // 나머지 요청은 인증 필요
                 })
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
