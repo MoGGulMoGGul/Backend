@@ -365,6 +365,37 @@ public class TipService {
         }
     }
 
+    @Transactional
+    public void updateTipFromAi(AiResultUpdateRequest request) {
+        Tip tip = tipRepository.findById(request.getTipNo())
+                .orElseThrow(() -> new RuntimeException("꿀팁을 찾을 수 없습니다: " + request.getTipNo()));
+
+        // AI 결과로 꿀팁 정보 업데이트
+        tip.setTitle(request.getTitle());
+        tip.setContentSummary(request.getContentSummary());
+        tip.setThumbnailUrl(request.getThumbnailUrl());
+
+        // 기존 태그 정보 삭제
+        tipTagRepository.deleteAll(tip.getTipTags());
+        tip.getTipTags().clear();
+
+        // 새로운 태그 정보 추가
+        if (request.getTags() != null && !request.getTags().isEmpty()) {
+            for (String tagName : request.getTags()) {
+                // 태그가 존재하면 가져오고, 없으면 새로 생성
+                Tag tag = tagRepository.findByName(tagName)
+                        .orElseGet(() -> tagRepository.save(new Tag(tagName)));
+
+                TipTag tipTag = new TipTag();
+                tipTag.setTip(tip);
+                tipTag.setTag(tag);
+                tip.getTipTags().add(tipTag);
+            }
+        }
+
+        tipRepository.save(tip);
+    }
+
     // Task ID로 AI 작업 결과를 폴링하는 메서드
     private Map<String, Object> pollAiSummaryResult(String taskId) {
         RestTemplate restTemplate = new RestTemplate();

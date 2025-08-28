@@ -18,4 +18,8 @@ public class Tag {
 
     @Column(name = "name", nullable = false, unique = true, length = 50)
     private String name; // 태그 이름 (예: "요리", "자취", "그림", "여행" 등)
+
+    public Tag(String name) {
+        this.name = name;
+    }
 }
