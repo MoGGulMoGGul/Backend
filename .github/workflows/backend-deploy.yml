@@ -39,6 +39,7 @@ jobs:
           echo "cloud.aws.region.static=ap-northeast-2" >> $PROPERTIES_PATH
           echo "cloud.aws.stack.auto=false" >> $PROPERTIES_PATH
           echo "ai.server.url=http://${{ secrets.AI_SERVER_HOST }}:8000" >> $PROPERTIES_PATH
+          echo "spring.jpa.hibernate.ddl-auto=update" >> application.properties
 
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
