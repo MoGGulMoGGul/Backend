@@ -53,6 +53,12 @@ public class TipService {
         tip.setIsPublic(false); // 생성 단계에서는 기본적으로 비공개 (등록 단계에서 설정)
         tip.setCreatedAt(LocalDateTime.now());
         tip.setUpdatedAt(LocalDateTime.now());
+        tip.setContentSummary("요약 생성 중..."); // 초기 상태 메시지
+
+        // 꿀팁을 먼저 저장하여 ID를 확보
+        Tip savedTip = tipRepository.save(tip);
+        Long tipId = savedTip.getNo();
+
 
         // AI 요약 요청 (FastAPI 서버 호출)
         RestTemplate restTemplate = new RestTemplate();
@@ -60,18 +66,22 @@ public class TipService {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        Map<String, String> pythonRequest = Map.of("url", request.getUrl());
-        HttpEntity<Map<String, String>> entity = new HttpEntity<>(pythonRequest, headers);
+        // 요청에 tip_id를 추가
+        Map<String, Object> pythonRequest = new HashMap<>();
+        pythonRequest.put("url", request.getUrl());
+        pythonRequest.put("tip_id", tipId);
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(pythonRequest, headers);
 
         try {
             ResponseEntity<Map> pythonResponse = restTemplate.postForEntity(pythonUrl, entity, Map.class);
             String taskId = (String) pythonResponse.getBody().get("task_id");
-            tip.setContentSummary("요약 생성 중... (taskId: " + taskId + ")"); // 요약 대기 상태
+            savedTip.setContentSummary("요약 생성 중... (taskId: " + taskId + ")"); // taskId로 업데이트
+            tipRepository.save(savedTip); // taskId를 포함하여 다시 저장
         } catch (Exception e) {
-            tip.setContentSummary("요약 실패: " + e.getMessage()); // 요약 실패 처리
+            savedTip.setContentSummary("요약 실패: " + e.getMessage()); // 요약 실패 처리
+            tipRepository.save(savedTip); // 실패 상태 저장
         }
-
-        Tip savedTip = tipRepository.save(tip); // 임시 팁 저장
 
         // 태그 처리 로직 (생성 단계에서 태그를 받았다면 저장)
         if (request.getTags() != null && !request.getTags().isEmpty()) {
