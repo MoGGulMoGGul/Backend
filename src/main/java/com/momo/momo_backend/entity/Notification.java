@@ -1,43 +1,68 @@
 package com.momo.momo_backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
-import com.momo.momo_backend.enums.NotificationType;
 
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "notification")
 @Getter
-@Setter
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@Entity
+@Table(name = "notification")
 public class Notification {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long no; // 알림 식별 번호
+    @EqualsAndHashCode.Include
+    @Column(name = "no")
+    private Long no;
 
+    /** 알림 대상 사용자 */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "receiver_no", nullable = false)
-    private User receiver; // 알림 수신자 (User.no)
+    @JoinColumn(name = "user_no", nullable = false)
+    @JsonIgnore
+    private User user;
 
-    // optional = true, nullable = true로 변경하여 null 값을 허용하도록 수정
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tip_no")
-    private Tip tip; // 관련된 팁 번호 (Tip.no)
+    /** 알림 타입(예: tip:new, tip:update, comment:new ...) */
+    @Column(name = "type", length = 50, nullable = false)
+    private String type;
 
-    @Builder.Default
+    /** 표시용 메시지 */
+    @Column(name = "message", length = 1000)
+    private String message;
+
+    /** 클릭 시 이동할 경로(선택) */
+    @Column(name = "link_url", length = 1000)
+    private String linkUrl;
+
+    /** 읽음 여부 */
     @Column(name = "is_read", nullable = false)
-    private boolean isRead = false;
+    private boolean read;
 
-    @Builder.Default
+    /** 생성시각 */
     @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now(); // 알림 발생 시각
+    private LocalDateTime createdAt;
 
+    @PrePersist
+    void onCreate() {
+        if (createdAt == null) createdAt = LocalDateTime.now();
+    }
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false, length = 50)
-    private NotificationType type;
+    public void markAsRead() {
+        this.read = true;
+    }
+
+    public static Notification of(User user, String type, String message, String linkUrl) {
+        return Notification.builder()
+                .user(user)
+                .type(type)
+                .message(message)
+                .linkUrl(linkUrl)
+                .read(false)
+                .build();
+    }
 }

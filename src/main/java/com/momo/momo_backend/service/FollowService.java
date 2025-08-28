@@ -3,7 +3,6 @@ package com.momo.momo_backend.service;
 import com.momo.momo_backend.entity.Follow;
 import com.momo.momo_backend.entity.Notification;
 import com.momo.momo_backend.entity.User;
-import com.momo.momo_backend.enums.NotificationType;
 import com.momo.momo_backend.repository.FollowRepository;
 import com.momo.momo_backend.repository.NotificationRepository;
 import com.momo.momo_backend.repository.UserRepository;
@@ -42,18 +41,22 @@ public class FollowService {
                 .build();
         followRepository.save(follow);
 
-        // 알림 전송 (팔로우 당한 사람에게)
-        Notification notification = Notification.builder()
-                .receiver(following)
-                .tip(null) // 팔로우는 특정 팁과 무관
-                .type(NotificationType.FOLLOWED_ME)
-                .isRead(false)
-                .build();
-
+        // ✅ 알림 전송: 현 Notification 엔티티는 (user, type, message, linkUrl, read, createdAt)
+        //    - user: 수신자
+        //    - type: 문자열로 관리 (예: "FOLLOWED_ME")
+        //    - message/linkUrl: 선택
+        Notification notification = Notification.of(
+                following,                             // 수신자
+                "FOLLOWED_ME",                         // 타입 문자열
+                follower.getNickname() != null
+                        ? follower.getNickname() + " 님이 나를 팔로우했습니다."
+                        : follower.getLoginId() + " 님이 나를 팔로우했습니다.",
+                null                                   // linkUrl (없으면 null)
+        );
         notificationRepository.save(notification);
     }
 
-    // 팔로우 취소 메서드 추가
+    // 팔로우 취소
     @Transactional
     public void unfollowUser(Long followerNo, String followeeLoginId) {
         User follower = userRepository.findById(followerNo)
@@ -66,5 +69,6 @@ public class FollowService {
                 .orElseThrow(() -> new IllegalArgumentException("팔로우 관계가 존재하지 않습니다."));
 
         followRepository.delete(follow);
+        // 언팔로우 시 알림은 선택사항이므로 생략
     }
 }
