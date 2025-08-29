@@ -1,6 +1,7 @@
 package com.momo.momo_backend.dto;
 
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -22,9 +23,9 @@ public class TipRegisterRequest {
 
     private List<String> tags;
 
-    @NotEmpty
+    @NotNull
     private Long storageNo;
 
-    @NotEmpty
+    @NotNull
     private Boolean isPublic;
 }
