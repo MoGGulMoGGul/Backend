@@ -44,14 +44,14 @@ public class TipService {
     @Transactional
     public TipCreateResponse createTip(TipCreateRequest request) throws InterruptedException {
         // 1. AI 서버에 URL 분석 요청 보내고 Task ID 받기
-        String processUrl = aiApiUrl + "/process";
+        String processUrl = aiApiUrl + "/async-index/";
         Map<String, String> body = new HashMap<>();
         body.put("url", request.getUrl());
         AiTaskResponseDto taskResponse = restTemplate.postForObject(processUrl, body, AiTaskResponseDto.class);
         String taskId = taskResponse.getTaskId();
 
         // 2. Polling으로 AI 분석 결과 받아오기
-        String resultUrl = aiApiUrl + "/result/" + taskId;
+        String resultUrl = aiApiUrl + "/task-status/" + taskId;
         long startTime = System.currentTimeMillis();
         long timeout = 120000; // 2분 타임아웃
 
