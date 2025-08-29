@@ -18,11 +18,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-
-import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -89,38 +84,5 @@ public class SecurityConfig {
                         UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
-    }
-
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration config = new CorsConfiguration();
-
-        // 요청을 허용할 프론트엔드 서버의 주소를 설정합니다.
-        config.setAllowedOrigins(List.of(
-                "http://localhost:3000",
-                "http://localhost:5173"
-                // TODO: 프론트엔드 배포 시, 실제 서비스 도메인을 추가해야 합니다.
-                // "https://your-frontend-domain.com"
-        ));
-
-        // 허용할 HTTP 메서드를 설정합니다.
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-
-        // 허용할 요청 헤더를 설정합니다.
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin"));
-
-        // 브라우저에서 접근 가능하게 할 응답 헤더를 설정합니다.
-        config.setExposedHeaders(List.of("Authorization"));
-
-        // 자격 증명(쿠키, 인증 헤더 등)을 포함한 요청을 허용합니다.
-        config.setAllowCredentials(true);
-
-        // Preflight 요청의 결과를 캐시할 시간을 설정합니다. (단위: 초)
-        config.setMaxAge(3600L);
-
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        // 모든 경로에 대해 위에서 정의한 CORS 설정을 적용합니다.
-        source.registerCorsConfiguration("/**", config);
-        return source;
     }
 }
