@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -22,69 +23,26 @@ public class TipController {
 
     // 꿀팁 생성 (AI 요약 요청 및 임시 팁 저장)
     @PostMapping("/generate")
-    public ResponseEntity<?> generateTip(@RequestBody TipRequest tipRequest,
-                                         @AuthenticationPrincipal CustomUserDetails userDetails) {
-        log.info("꿀팁 생성 요청 - 사용자: {}, URL: {}", userDetails.getUsername(), tipRequest.getUrl());
+    public ResponseEntity<TipCreateResponse> createTip(@RequestBody TipCreateRequest request) {
+        log.info("꿀팁 생성 요청 URL: {}", request.getUrl());
         try {
-            Long userNo = userDetails.getUser().getNo();
-            TipResponse tipResponse = tipService.createTip(userNo, tipRequest);
-            log.info("꿀팁 생성 성공 - 꿀팁 ID: {}", tipResponse.getNo());
-            return ResponseEntity.ok(tipResponse);
-        } catch (IllegalArgumentException e) {
-            log.error("꿀팁 생성 실패: {}", e.getMessage());
-            ErrorResponse errorResponse = ErrorResponse.builder()
-                    .status(HttpStatus.BAD_REQUEST.value())
-                    .message(e.getMessage())
-                    .error(e.getClass().getSimpleName())
-                    .build();
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+            TipCreateResponse response = tipService.createTip(request);
+            log.info("꿀팁 생성 완료: {}", response.getTitle());
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("꿀팁 생성 중 예상치 못한 오류 발생: {}", e.getMessage(), e);
-            ErrorResponse errorResponse = ErrorResponse.builder()
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                    .message("꿀팁 생성 중 오류가 발생했습니다.")
-                    .error(e.getClass().getSimpleName())
-                    .build();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+            log.error("꿀팁 생성 중 오류 발생: {}", e.getMessage());
+            return ResponseEntity.status(500).build();
         }
     }
 
-    // 꿀팁 등록 (생성된 팁을 최종 보관함에 연결 및 공개 여부 설정)
     @PostMapping("/register")
-    public ResponseEntity<?> registerTip(@RequestBody TipRegisterRequest request,
-                                         @AuthenticationPrincipal CustomUserDetails userDetails) {
-        log.info("꿀팁 등록 요청 - 꿀팁 ID: {}, 보관함 ID: {}, 공개 여부: {}, 사용자: {}",
-                request.getTipNo(), request.getStorageNo(), request.getIsPublic(), userDetails.getUsername());
-        try {
-            Long userNo = userDetails.getUser().getNo(); // 등록하는 사용자 (팁 소유권 검증에 사용)
-            TipResponse updatedTip = tipService.registerTip(request, userNo);
-            log.info("꿀팁 등록 성공 - 꿀팁 ID: {}", updatedTip.getNo());
-            return ResponseEntity.ok(updatedTip);
-        } catch (IllegalArgumentException e) {
-            log.error("꿀팁 등록 실패: {}", e.getMessage());
-            ErrorResponse errorResponse = ErrorResponse.builder()
-                    .status(HttpStatus.BAD_REQUEST.value())
-                    .message(e.getMessage())
-                    .error(e.getClass().getSimpleName())
-                    .build();
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
-        } catch (AccessDeniedException e) {
-            log.error("꿀팁 등록 권한 없음: {}", e.getMessage());
-            ErrorResponse errorResponse = ErrorResponse.builder()
-                    .status(HttpStatus.FORBIDDEN.value())
-                    .message(e.getMessage())
-                    .error(e.getClass().getSimpleName())
-                    .build();
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
-        } catch (Exception e) {
-            log.error("꿀팁 등록 중 예상치 못한 오류 발생: {}", e.getMessage(), e);
-            ErrorResponse errorResponse = ErrorResponse.builder()
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                    .message("꿀팁 등록 중 오류가 발생했습니다.")
-                    .error(e.getClass().getSimpleName())
-                    .build();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
-        }
+    public ResponseEntity<TipRegisterResponse> registerTip(@RequestBody @Valid TipRegisterRequest request,
+                                                           @AuthenticationPrincipal UserDetails userDetails) {
+        Long tempUserId = 1L;
+        log.info("꿀팁 등록 요청: userId={}, title={}", tempUserId, request.getTitle());
+        TipRegisterResponse response = tipService.registerTip(request, tempUserId);
+        log.info("꿀팁 등록 완료: tipNo={}", response.getTipNo());
+        return ResponseEntity.ok(response);
     }
 
     // 팁 수정
@@ -140,30 +98,4 @@ public class TipController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
-
-    // AI 꿀팁 자동 생성 및 등록
-    @PostMapping("/auto-create-async")
-    public ResponseEntity<?> createAndRegisterTipAutoAsync(@RequestBody TipAutoCreateRequest request,
-                                                           @AuthenticationPrincipal CustomUserDetails userDetails) {
-        log.info("AI 꿀팁 자동 생성(비동기) 요청 - 사용자: {}, URL: {}", userDetails.getUsername(), request.getUrl());
-        try {
-            Long userNo = userDetails.getUser().getNo();
-            TipResponse tipResponse = tipService.createAndRegisterTipAutoAsync(userNo, request);
-            log.info("AI 꿀팁 자동 생성(비동기) 성공 - 꿀팁 ID: {}", tipResponse.getNo());
-            return ResponseEntity.status(HttpStatus.CREATED).body(tipResponse);
-        } catch (AccessDeniedException e) {
-            ErrorResponse errorResponse = ErrorResponse.builder()
-                    .status(HttpStatus.FORBIDDEN.value()).message(e.getMessage()).error(e.getClass().getSimpleName()).build();
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
-        } catch (IllegalArgumentException e) {
-            ErrorResponse errorResponse = ErrorResponse.builder()
-                    .status(HttpStatus.BAD_REQUEST.value()).message(e.getMessage()).error(e.getClass().getSimpleName()).build();
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
-        } catch (RuntimeException e) { // RuntimeException 처리 추가
-            ErrorResponse errorResponse = ErrorResponse.builder()
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR.value()).message(e.getMessage()).error(e.getClass().getSimpleName()).build();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
-        }
-    }
-
 }

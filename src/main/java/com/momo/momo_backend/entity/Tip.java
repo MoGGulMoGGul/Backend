@@ -52,6 +52,11 @@ public class Tip {
     @OneToMany(mappedBy = "tip", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TipTag> tipTags = new ArrayList<>();
 
+    @PrePersist
+    public void prePersist() {
+        this.createdAt = LocalDateTime.now();
+    }
+
     @Builder
     public Tip(User user, String url, String title, String contentSummary, String thumbnailUrl, Boolean isPublic, String taskId) {
         this.user = user;

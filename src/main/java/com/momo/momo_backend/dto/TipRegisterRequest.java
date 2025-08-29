@@ -1,13 +1,30 @@
 package com.momo.momo_backend.dto;
 
+import jakarta.validation.constraints.NotEmpty;
 import lombok.Getter;
-import lombok.Setter;
+import lombok.NoArgsConstructor;
 
+import java.util.List;
 
 @Getter
-@Setter
+@NoArgsConstructor
 public class TipRegisterRequest {
-    private Long tipNo; // 생성 단계에서 받은 꿀팁 ID
-    private Boolean isPublic; // 공개 여부
-    private Long storageNo;   // 보관함 ID
+
+    @NotEmpty
+    private String url;
+
+    @NotEmpty
+    private String title;
+
+    private String summary;
+
+    private String thumbnailImageUrl;
+
+    private List<String> tags;
+
+    @NotEmpty
+    private Long storageNo;
+
+    @NotEmpty
+    private Boolean isPublic;
 }
