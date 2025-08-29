@@ -12,8 +12,8 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addMapping("/**") // 모든 경로에 대해
                 .allowedOrigins(
                         "http://localhost:3000",
-                        "http://localhost:5173"
-                        // "http://moggulmoggul-frontend.s3-website.ap-northeast-2.amazonaws.com"
+                        "http://localhost:5173",
+                        "http://moggulmoggul-frontend.s3-website.ap-northeast-2.amazonaws.com"
                 )
                 .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS") // 허용할 HTTP 메서드
                 .allowedHeaders("*") // 모든 헤더 허용
