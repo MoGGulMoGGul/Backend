@@ -11,22 +11,21 @@ import java.time.LocalDateTime;
 public class NotificationResponse {
 
     private Long id;
-    private String type;              // 현재 엔티티는 String 타입
+    private String type;          // 응답은 String
     private boolean isRead;
     private LocalDateTime createdAt;
 
-    // 현 엔티티에는 tip 연관이 없으므로, 호환을 위해 필드는 유지하되 항상 null
-    private Long tipId;               // nullable
-    private String tipTitle;          // nullable
+    private Long tipId;           // nullable
+    private String tipTitle;      // nullable
 
-    public static NotificationResponse fromEntity(Notification notification) {
+    public static NotificationResponse fromEntity(Notification n) {
         return NotificationResponse.builder()
-                .id(notification.getNo())
-                .type(notification.getType())                 // ✅ .name() 제거 (String)
-                .isRead(notification.isRead())
-                .createdAt(notification.getCreatedAt())
-                .tipId(null)                                   // ✅ 엔티티에 tip 없음
-                .tipTitle(null)                                // ✅ 엔티티에 tip 없음
+                .id(n.getNo())
+                .type(n.getType().name())              // ✅ enum → String
+                .isRead(n.isRead())
+                .createdAt(n.getCreatedAt())
+                .tipId(n.getTip() != null ? n.getTip().getNo() : null)
+                .tipTitle(n.getTip() != null ? n.getTip().getTitle() : null)
                 .build();
     }
 }

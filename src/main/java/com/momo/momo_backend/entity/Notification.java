@@ -1,8 +1,10 @@
 package com.momo.momo_backend.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.momo.momo_backend.enums.NotificationType;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
@@ -10,58 +12,47 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
-@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Entity
 @Table(name = "notification")
 public class Notification {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @EqualsAndHashCode.Include
     @Column(name = "no")
     private Long no;
 
-    /** 알림 대상 사용자 */
+    /** 수신자: notification.receiver_no */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_no", nullable = false)
+    @JoinColumn(name = "receiver_no", nullable = false)
     @JsonIgnore
-    private User user;
+    private User receiver;
 
-    /** 알림 타입(예: tip:new, tip:update, comment:new ...) */
+    /** 관련 팁(없을 수 있음): notification.tip_no */
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "tip_no")
+    @JsonIgnore
+    private Tip tip;
+
+    /** enum을 VARCHAR(50)에 저장 */
+    @Enumerated(EnumType.STRING)
     @Column(name = "type", length = 50, nullable = false)
-    private String type;
+    private NotificationType type;
 
-    /** 표시용 메시지 */
-    @Column(name = "message", length = 1000)
-    private String message;
-
-    /** 클릭 시 이동할 경로(선택) */
-    @Column(name = "link_url", length = 1000)
-    private String linkUrl;
-
-    /** 읽음 여부 */
     @Column(name = "is_read", nullable = false)
     private boolean read;
 
-    /** 생성시각 */
-    @Column(name = "created_at", nullable = false)
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @PrePersist
-    void onCreate() {
-        if (createdAt == null) createdAt = LocalDateTime.now();
-    }
+    public void markAsRead() { this.read = true; }
 
-    public void markAsRead() {
-        this.read = true;
-    }
-
-    public static Notification of(User user, String type, String message, String linkUrl) {
+    /** 팩토리: (수신자, 타입, 관련 팁[nullable]) */
+    public static Notification of(User receiver, NotificationType type, Tip tip) {
         return Notification.builder()
-                .user(user)
+                .receiver(receiver)
                 .type(type)
-                .message(message)
-                .linkUrl(linkUrl)
+                .tip(tip)
                 .read(false)
                 .build();
     }

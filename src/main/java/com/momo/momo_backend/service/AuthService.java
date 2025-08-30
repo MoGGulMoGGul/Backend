@@ -9,7 +9,8 @@ import com.momo.momo_backend.repository.UserCredentialRepository;
 import com.momo.momo_backend.repository.UserRepository;
 import com.momo.momo_backend.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.RedisTemplate;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -25,7 +27,11 @@ public class AuthService {
     private final UserCredentialRepository credentialRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final StringRedisTemplate stringRedisTemplate; // ✅ 변경
+
+    private String rtKey(String loginId) {
+        return "RT:" + loginId;
+    }
 
     /* ------------------------- 회원가입 ------------------------- */
     @Transactional
@@ -55,7 +61,7 @@ public class AuthService {
     }
 
     /* -------------------------- 로그인 -------------------------- */
-    @Transactional(readOnly = true)
+    @Transactional // ✅ readOnly 제거 (Redis 쓰기 포함)
     public LoginResponse login(LoginRequest request) {
         UserCredential credential = credentialRepository.findByLoginId(request.getId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
@@ -71,13 +77,15 @@ public class AuthService {
         String accessToken = jwtTokenProvider.createAccessToken(userNo, loginId);
         String refreshToken = jwtTokenProvider.createRefreshToken(userNo, loginId);
 
-        // Redis에 Refresh 저장
-        redisTemplate.opsForValue().set(
-                "RT:" + loginId,
+        // ✅ Redis에 Refresh 저장 (문자열)
+        String key = rtKey(loginId);
+        stringRedisTemplate.opsForValue().set(
+                key,
                 refreshToken,
                 jwtTokenProvider.getRefreshTokenValidity(),
                 TimeUnit.MILLISECONDS
         );
+        log.debug("[LOGIN] Saved RT to Redis key={}, ttl(ms)={}", key, jwtTokenProvider.getRefreshTokenValidity());
 
         return LoginResponse.builder()
                 .accessToken(accessToken)
@@ -99,21 +107,32 @@ public class AuthService {
             throw new IllegalArgumentException("리프레시 토큰에서 사용자 정보를 찾을 수 없습니다.");
         }
 
-        String stored = (String) redisTemplate.opsForValue().get("RT:" + loginId);
+        String key = rtKey(loginId);
+        String stored = stringRedisTemplate.opsForValue().get(key);
         String rawRefresh = jwtTokenProvider.resolveBearer(refreshTokenOrBearer);
+
+        log.debug("[REFRESH] Redis get key={}, stored={}", key, (stored != null ? "present" : "null"));
+
         if (stored == null || !stored.equals(rawRefresh)) {
             throw new IllegalArgumentException("리프레시 토큰이 일치하지 않거나 만료되었습니다. 다시 로그인해주세요.");
         }
 
         String newAccess = jwtTokenProvider.createAccessToken(userNo, loginId);
         String newRefresh = jwtTokenProvider.createRefreshToken(userNo, loginId);
-        redisTemplate.opsForValue().set(
-                "RT:" + loginId, newRefresh,
+
+        // RT 갱신
+        stringRedisTemplate.opsForValue().set(
+                key, newRefresh,
                 jwtTokenProvider.getRefreshTokenValidity(),
                 TimeUnit.MILLISECONDS
         );
+        log.debug("[REFRESH] Updated RT in Redis key={}, ttl(ms)={}", key, jwtTokenProvider.getRefreshTokenValidity());
 
-        return new LoginResponse(newAccess, newRefresh);
+        return LoginResponse.builder()
+                .accessToken(newAccess)
+                .refreshToken(newRefresh)
+                .userNo(userNo)
+                .build();
     }
 
     /* -------------------------- 로그아웃 -------------------------- */
@@ -126,12 +145,12 @@ public class AuthService {
         long remain = exp.getTime() - System.currentTimeMillis();
         if (remain > 0) {
             // Access 블랙리스트
-            redisTemplate.opsForValue().set(access, "logout", remain, TimeUnit.MILLISECONDS);
+            stringRedisTemplate.opsForValue().set(access, "logout", remain, TimeUnit.MILLISECONDS);
         }
 
         String loginId = jwtTokenProvider.getUserIdFromToken(access);
         if (loginId != null) {
-            redisTemplate.delete("RT:" + loginId);
+            stringRedisTemplate.delete(rtKey(loginId)); // RT 제거
         }
     }
 
@@ -195,6 +214,6 @@ public class AuthService {
         credentialRepository.save(cred);
 
         // 4) 기존 Refresh 무효화
-        redisTemplate.delete("RT:" + id);
+        stringRedisTemplate.delete(rtKey(id));
     }
 }

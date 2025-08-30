@@ -7,9 +7,12 @@ import com.momo.momo_backend.dto.SignupRequest;
 import com.momo.momo_backend.security.CustomUserDetails;
 import com.momo.momo_backend.security.JwtTokenProvider;
 import com.momo.momo_backend.service.AuthService;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -32,20 +35,62 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request) {
-        return ResponseEntity.ok(authService.login(request));
+    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request,
+                                               HttpServletResponse response) {
+        LoginResponse body = authService.login(request);
+
+        // Refresh 토큰을 HttpOnly 쿠키로 심어줌
+        ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", body.getRefreshToken())
+                .httpOnly(true)
+                .secure(true)          // 로컬 http면 false 로 바꿔도 됨
+                .path("/")             // 필요하면 /api/auth 로 좁힐 수 있음
+                .sameSite("None")      // 프론트가 다른 포트/도메인이면 None 권장
+                .maxAge(60L * 60 * 24 * 14) // 예시 14일; JWT 만료와 맞추면 좋음
+                .build();
+
+        return ResponseEntity.ok()
+                .header("Set-Cookie", refreshCookie.toString())
+                .body(body);
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(@RequestHeader("Authorization") String authorizationHeader) {
+    public ResponseEntity<Void> logout(@RequestHeader("Authorization") String authorizationHeader,
+                                       HttpServletResponse response) {
         authService.logout(authorizationHeader);
-        return ResponseEntity.ok().build();
+
+        // RT 쿠키 삭제
+        ResponseCookie deleteCookie = ResponseCookie.from("refreshToken", "")
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .sameSite("None")
+                .maxAge(0)
+                .build();
+
+        return ResponseEntity.ok()
+                .header("Set-Cookie", deleteCookie.toString())
+                .build();
     }
 
     /** 리프레시 토큰으로 새 토큰 발급 */
     @PostMapping("/refresh")
-    public ResponseEntity<?> refresh(HttpServletRequest request) {
-        String refreshToken = jwtTokenProvider.resolveToken(request); // Authorization: Bearer xxx
+    public ResponseEntity<?> refresh(HttpServletRequest request,
+                                     HttpServletResponse response) {
+        // 1) 쿠키 우선
+        String refreshFromCookie = null;
+        if (request.getCookies() != null) {
+            for (Cookie c : request.getCookies()) {
+                if ("refreshToken".equals(c.getName())) {
+                    refreshFromCookie = c.getValue();
+                    break;
+                }
+            }
+        }
+        // 2) 없으면 Authorization 헤더 (Bearer …)
+        String refreshToken = (refreshFromCookie != null)
+                ? refreshFromCookie
+                : jwtTokenProvider.resolveToken(request);
+
         if (refreshToken == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(ErrorResponse.builder()
@@ -54,9 +99,22 @@ public class AuthController {
                             .error("MissingToken")
                             .build());
         }
+
         try {
             LoginResponse newTokens = authService.refresh(refreshToken);
-            return ResponseEntity.ok(newTokens);
+
+            // 새 RT로 쿠키 갱신
+            ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", newTokens.getRefreshToken())
+                    .httpOnly(true)
+                    .secure(true)
+                    .path("/")
+                    .sameSite("None")
+                    .maxAge(60L * 60 * 24 * 14)
+                    .build();
+
+            return ResponseEntity.ok()
+                    .header("Set-Cookie", refreshCookie.toString())
+                    .body(newTokens);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(ErrorResponse.builder()

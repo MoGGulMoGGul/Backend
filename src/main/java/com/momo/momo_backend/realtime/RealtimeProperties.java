@@ -1,7 +1,6 @@
 package com.momo.momo_backend.realtime;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
-// import org.springframework.boot.context.properties.bind.DefaultValue; // ❌ 사용 안 하므로 제거
 
 import java.util.List;
 
@@ -39,8 +38,8 @@ public class RealtimeProperties {
     public static class Topics {
         private String feed = "/topic/feed";
         private String challengeRank = "/topic/challenge/{id}/rank";
-        private String userNotificationQueue = "/user/queue/notifications";
-        // ✅ 추가: 가장 많이 본 꿀팁 랭킹 채널
+        // ✅ '/user'는 Spring이 자동 프리픽스하므로 여기서는 '/queue/...'만 적는다
+        private String userNotificationQueue = "/queue/notifications";
         private String tipViewsRank = "/topic/tips/rank/views";
 
         public String getFeed() { return feed; }
@@ -52,7 +51,6 @@ public class RealtimeProperties {
         public String getUserNotificationQueue() { return userNotificationQueue; }
         public void setUserNotificationQueue(String userNotificationQueue) { this.userNotificationQueue = userNotificationQueue; }
 
-        // ✅ getter/setter 추가
         public String getTipViewsRank() { return tipViewsRank; }
         public void setTipViewsRank(String tipViewsRank) { this.tipViewsRank = tipViewsRank; }
     }

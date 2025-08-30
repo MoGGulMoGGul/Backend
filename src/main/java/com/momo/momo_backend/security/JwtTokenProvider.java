@@ -11,7 +11,6 @@ import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
-import java.util.Map;
 
 @Slf4j
 @Component
@@ -37,16 +36,17 @@ public class JwtTokenProvider {
         Date iat = new Date(now);
         Date exp = new Date(now + accessValidityMs);
 
+        // 주의: setClaims(...)는 기존 클레임을 모두 덮어씌웁니다.
         return Jwts.builder()
-                .setSubject(loginId)
-                .setClaims(Map.of("userNo", userNo))
+                .setSubject(loginId)          // sub 유지
+                .claim("userNo", userNo)      // 필요한 클레임만 개별 추가
                 .setIssuedAt(iat)
                 .setExpiration(exp)
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
     }
 
-    /** Refresh 토큰: sub=loginId, claim=userNo (동일 포맷로 일관성 유지) */
+    /** Refresh 토큰: sub=loginId, claim=userNo (동일 포맷) */
     public String createRefreshToken(Long userNo, String loginId) {
         long now = System.currentTimeMillis();
         Date iat = new Date(now);
@@ -54,7 +54,7 @@ public class JwtTokenProvider {
 
         return Jwts.builder()
                 .setSubject(loginId)
-                .setClaims(Map.of("userNo", userNo))
+                .claim("userNo", userNo)
                 .setIssuedAt(iat)
                 .setExpiration(exp)
                 .signWith(key, SignatureAlgorithm.HS256)

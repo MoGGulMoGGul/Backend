@@ -27,18 +27,25 @@ public class JwtStompChannelInterceptor implements ChannelInterceptor {
         StompCommand cmd = accessor.getCommand();
 
         if (cmd == StompCommand.CONNECT || cmd == StompCommand.SUBSCRIBE || cmd == StompCommand.SEND) {
-            String token = extractBearer(accessor);
+            String token = extractBearer(accessor); // raw JWT
             if (token != null && jwtTokenProvider.validateToken(token)) {
-                // JwtTokenProvider에 getAuthentication()이 없으므로
-                // 토큰의 subject(loginId)로 최소 권한 Principal 구성
-                String loginId = jwtTokenProvider.getUserIdFromToken(token);
-                if (loginId != null) {
+                // ✅ Principal.name을 userNo 문자열로 세팅
+                Long userNo = jwtTokenProvider.getUserNo(token); // <-- 존재하는 메서드명 사용
+                if (userNo != null) {
                     Authentication auth =
-                            new UsernamePasswordAuthenticationToken(loginId, null, List.of());
+                            new UsernamePasswordAuthenticationToken(String.valueOf(userNo), null, List.of());
                     accessor.setUser(auth);
-                    log.debug("STOMP {} -> authenticated user={}", cmd, loginId);
+                    log.debug("STOMP {} -> authenticated userNo={}", cmd, userNo);
                 } else {
-                    log.debug("STOMP {} -> valid token but missing subject", cmd);
+                    // userNo 클레임이 없으면 loginId로 폴백(개인 큐 매칭은 안될 수 있음)
+                    String loginId = jwtTokenProvider.getUserIdFromToken(token);
+                    if (loginId != null) {
+                        accessor.setUser(new UsernamePasswordAuthenticationToken(loginId, null, List.of()));
+                        log.warn("STOMP {} -> token has no userNo claim; set Principal to loginId={}, "
+                                + "personal queue routing may not match (expects userNo string)", cmd, loginId);
+                    } else {
+                        log.debug("STOMP {} -> valid token but missing userNo/loginId", cmd);
+                    }
                 }
             } else {
                 log.debug("STOMP {} without/invalid token (public endpoints may allow)", cmd);
