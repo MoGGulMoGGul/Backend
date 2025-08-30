@@ -38,7 +38,7 @@ jobs:
           echo "cloud.aws.s3.bucket=${{ secrets.AWS_S3_BUCKET_NAME }}" >> $PROPERTIES_PATH
           echo "cloud.aws.region.static=ap-northeast-2" >> $PROPERTIES_PATH
           echo "cloud.aws.stack.auto=false" >> $PROPERTIES_PATH
-          echo "ai.server.url=http://${{ secrets.AI_SERVER_HOST }}:8000" >> $PROPERTIES_PATH
+          echo "ai.server.url=${{ secrets.AI_SERVER_HOST }}:8000" >> $PROPERTIES_PATH
           echo "spring.jpa.hibernate.ddl-auto=update" >> application.properties
           echo "cors.allowed-origins=${{ secrets.CORS_ALLOWED_ORIGINS }}" >> $PROPERTIES_PATH
 
