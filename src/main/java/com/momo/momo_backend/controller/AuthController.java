@@ -7,9 +7,12 @@ import com.momo.momo_backend.dto.SignupRequest;
 import com.momo.momo_backend.security.CustomUserDetails;
 import com.momo.momo_backend.security.JwtTokenProvider;
 import com.momo.momo_backend.service.AuthService;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -21,6 +24,7 @@ public class AuthController {
 
     private final AuthService authService;
     private final JwtTokenProvider jwtTokenProvider;
+
     public record ResetPwRequest(String id, String nickname, String newPassword) {}
     public record FindIdRequest(String nickname, String password) {}
 
@@ -31,73 +35,130 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request) {
-        LoginResponse response = authService.login(request);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request,
+                                               HttpServletResponse response) {
+        LoginResponse body = authService.login(request);
+
+        // Refresh 토큰을 HttpOnly 쿠키로 심어줌
+        ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", body.getRefreshToken())
+                .httpOnly(true)
+                .secure(true)          // 로컬 http면 false 로 바꿔도 됨
+                .path("/")             // 필요하면 /api/auth 로 좁힐 수 있음
+                .sameSite("None")      // 프론트가 다른 포트/도메인이면 None 권장
+                .maxAge(60L * 60 * 24 * 14) // 예시 14일; JWT 만료와 맞추면 좋음
+                .build();
+
+        return ResponseEntity.ok()
+                .header("Set-Cookie", refreshCookie.toString())
+                .body(body);
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(@RequestHeader("Authorization") String accessToken) {
-        authService.logout(accessToken); // 수정된 서비스 메서드 호출
-        return ResponseEntity.ok().build();
+    public ResponseEntity<Void> logout(@RequestHeader("Authorization") String authorizationHeader,
+                                       HttpServletResponse response) {
+        authService.logout(authorizationHeader);
+
+        // RT 쿠키 삭제
+        ResponseCookie deleteCookie = ResponseCookie.from("refreshToken", "")
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .sameSite("None")
+                .maxAge(0)
+                .build();
+
+        return ResponseEntity.ok()
+                .header("Set-Cookie", deleteCookie.toString())
+                .build();
     }
 
-
+    /** 리프레시 토큰으로 새 토큰 발급 */
     @PostMapping("/refresh")
-    public ResponseEntity<?> refresh(HttpServletRequest request) {
-        String refreshToken = jwtTokenProvider.resolveToken(request);
-        if (refreshToken == null) {
-            ErrorResponse errorResponse = ErrorResponse.builder()
-                    .status(HttpStatus.UNAUTHORIZED.value())
-                    .message("리프레시 토큰이 없습니다.")
-                    .error("MissingTokenException")
-                    .build();
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
+    public ResponseEntity<?> refresh(HttpServletRequest request,
+                                     HttpServletResponse response) {
+        // 1) 쿠키 우선
+        String refreshFromCookie = null;
+        if (request.getCookies() != null) {
+            for (Cookie c : request.getCookies()) {
+                if ("refreshToken".equals(c.getName())) {
+                    refreshFromCookie = c.getValue();
+                    break;
+                }
+            }
         }
+        // 2) 없으면 Authorization 헤더 (Bearer …)
+        String refreshToken = (refreshFromCookie != null)
+                ? refreshFromCookie
+                : jwtTokenProvider.resolveToken(request);
+
+        if (refreshToken == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ErrorResponse.builder()
+                            .status(HttpStatus.UNAUTHORIZED.value())
+                            .message("리프레시 토큰이 없습니다.")
+                            .error("MissingToken")
+                            .build());
+        }
+
         try {
             LoginResponse newTokens = authService.refresh(refreshToken);
-            return ResponseEntity.ok(newTokens);
-        } catch (IllegalArgumentException e) {
-            ErrorResponse errorResponse = ErrorResponse.builder()
-                    .status(HttpStatus.UNAUTHORIZED.value())
-                    .message(e.getMessage())
-                    .error(e.getClass().getSimpleName())
+
+            // 새 RT로 쿠키 갱신
+            ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", newTokens.getRefreshToken())
+                    .httpOnly(true)
+                    .secure(true)
+                    .path("/")
+                    .sameSite("None")
+                    .maxAge(60L * 60 * 24 * 14)
                     .build();
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
+
+            return ResponseEntity.ok()
+                    .header("Set-Cookie", refreshCookie.toString())
+                    .body(newTokens);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ErrorResponse.builder()
+                            .status(HttpStatus.UNAUTHORIZED.value())
+                            .message(e.getMessage())
+                            .error(e.getClass().getSimpleName())
+                            .build());
         }
     }
 
     @GetMapping("/check-id")
     public ResponseEntity<Boolean> checkId(@RequestParam String id) {
-        boolean exists = authService.checkIdExists(id);
-        return ResponseEntity.ok(exists);
+        return ResponseEntity.ok(authService.checkIdExists(id));
     }
 
     @GetMapping("/check-nickname")
     public ResponseEntity<Boolean> checkNickname(@RequestParam String nickname) {
-        boolean exists = authService.checkNicknameExists(nickname);
-        return ResponseEntity.ok(exists);
+        return ResponseEntity.ok(authService.checkNicknameExists(nickname));
     }
 
-    // 회원탈퇴 (토큰 기반 유저 정보 사용)
+    /** 회원탈퇴 */
     @DeleteMapping("/withdrawal")
     public ResponseEntity<Void> withdrawal(@AuthenticationPrincipal CustomUserDetails principal) {
         authService.withdraw(principal.getUser().getNo());
-        return ResponseEntity.noContent().build(); // 204
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/find-id")
     public ResponseEntity<String> findId(@RequestBody FindIdRequest req) {
-        String loginId = authService.findId(req.nickname(), req.password());
-        return ResponseEntity.ok(loginId);
+        return ResponseEntity.ok(authService.findId(req.nickname(), req.password()));
     }
 
     @PostMapping("/reset-pw")
-    public ResponseEntity<Void> resetPassword(@RequestBody ResetPwRequest req) {
-        authService.resetPassword(req.id(), req.nickname(), req.newPassword());
-        return ResponseEntity.ok().build();
+    public ResponseEntity<?> resetPassword(@RequestBody ResetPwRequest req) {
+        try {
+            authService.resetPassword(req.id(), req.nickname(), req.newPassword());
+            return ResponseEntity.ok().build();
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest()
+                    .body(ErrorResponse.builder()
+                            .status(HttpStatus.BAD_REQUEST.value())
+                            .message(e.getMessage())
+                            .error(e.getClass().getSimpleName())
+                            .build());
+        }
     }
-
-
-
 }
