@@ -22,8 +22,9 @@ public class TipController {
 
     /** 꿀팁 생성 (AI 요약 요청만; DB 저장/WS 없음) */
     @PostMapping("/generate")
-    public ResponseEntity<TipCreateResponse> createTip(@RequestBody TipCreateRequest request,
-                                                       @AuthenticationPrincipal CustomUserDetails user // 있으면 로깅만
+    public ResponseEntity<TipCreateResponse> createTip(
+            @RequestBody TipCreateRequest request,
+            @AuthenticationPrincipal CustomUserDetails user // 있으면 로깅만
     ) {
         String who = (user != null) ? user.getUsername() : "anonymous";
         log.info("꿀팁 생성 요청 by={}, url={}, title(pre):{}, tags(pre):{}",
@@ -40,18 +41,16 @@ public class TipController {
 
     /** 꿀팁 최종 등록 — 서비스에서 DB저장 + 태그 upsert + 알림/WS 처리 */
     @PostMapping("/register")
-    public ResponseEntity<TipRegisterResponse> registerTip(@RequestBody @Valid TipRegisterRequest request,
-                                                           @AuthenticationPrincipal CustomUserDetails userDetails) {
-        // ⚠️ 더 이상 tempUserId 사용 금지 — 실제 로그인 사용자 사용
+    public ResponseEntity<TipRegisterResponse> registerTip(
+            @RequestBody @Valid TipRegisterRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
         Long userNo = userDetails.getUser().getNo();
 
-        // tipNo/storageNo 를 우선 사용하되, 프론트가 tipId/storageId로 보내도 DTO alias가 매핑해줌
-        log.info("꿀팁 등록 요청 userNo={}, tipNo/tipId={}/{}, storageNo/storageId={}/{}, isPublic={}, tags={}",
-                userNo,
-                request.getTipNo(), request.getTipId(),
-                request.getStorageNo(), request.getStorageId(),
-                request.getIsPublic(),
-                request.getTags());
+        // DTO 스펙에 맞춘 로깅(= tipId/tipNo/storageId 없음)
+        log.info("꿀팁 등록 요청 userNo={}, storageNo={}, isPublic={}, url={}, title={}, tags={}",
+                userNo, request.getStorageNo(), request.getIsPublic(),
+                request.getUrl(), request.getTitle(), request.getTags());
 
         TipRegisterResponse response = tipService.registerTip(request, userNo);
         log.info("꿀팁 등록 완료: tipNo={}, storageNo={}, public={}, title={}",

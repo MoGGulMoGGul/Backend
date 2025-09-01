@@ -51,9 +51,7 @@ public class TipService {
     private final SimpMessagingTemplate messagingTemplate;
     private final ApplicationEventPublisher eventPublisher;
 
-    /* =========================================================
-       1) 꿀팁 생성(미리보기): AI 폴링만 → DB 저장/브로드캐스트 안 함
-       ========================================================= */
+    /* 1) 꿀팁 생성(미리보기): AI 폴링만 → DB 저장/브로드캐스트 안 함 */
     @Transactional
     public TipCreateResponse createTip(TipCreateRequest request) throws InterruptedException {
         String processUrl = aiApiUrl + "/async-index/";
@@ -62,9 +60,7 @@ public class TipService {
 
         AiTaskResponseDto task = restTemplate.postForObject(processUrl, body, AiTaskResponseDto.class);
         String taskId = (task != null) ? task.getTaskId() : null;
-        if (!StringUtils.hasText(taskId)) {
-            throw new RuntimeException("AI task 생성 실패");
-        }
+        if (!StringUtils.hasText(taskId)) throw new RuntimeException("AI task 생성 실패");
 
         String resultUrl = aiApiUrl + "/task-status/" + taskId;
         long start = System.currentTimeMillis();
@@ -74,11 +70,9 @@ public class TipService {
             AiResultResponseDto result = restTemplate.getForObject(resultUrl, AiResultResponseDto.class);
             if (result != null && "SUCCESS".equals(result.getStatus())) {
                 AiResultResponseDto.ResultData r = result.getResult();
-
                 String finalTitle = StringUtils.hasText(request.getTitle()) ? request.getTitle() : r.getTitle();
                 List<String> finalTags = (request.getTags() != null && !request.getTags().isEmpty())
                         ? request.getTags() : r.getTags();
-
                 return TipCreateResponse.builder()
                         .url(request.getUrl())
                         .title(finalTitle)
@@ -92,15 +86,12 @@ public class TipService {
         throw new RuntimeException("AI processing timed out: " + taskId);
     }
 
-    /* =========================================================
-       2) 최종 등록: 저장 + 태그 upsert + 보관함 매핑 + 피드 + 개인 알림
-       ========================================================= */
+    /* 2) 최종 등록: 저장 + 태그 upsert + 보관함 매핑 + 피드 + 개인 알림 */
     @Transactional
     public TipRegisterResponse registerTip(TipRegisterRequest request, Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
 
-        // Tip 저장
         Tip tip = Tip.builder()
                 .title(StringUtils.hasText(request.getTitle()) ? request.getTitle() : "제목 없음")
                 .url(request.getUrl())
@@ -109,7 +100,6 @@ public class TipService {
                 .isPublic(Boolean.TRUE.equals(request.getIsPublic()))
                 .user(user)
                 .build();
-        // 빌더엔 createdAt/updatedAt 세터가 없을 수 있으므로 setter로
         tip.setCreatedAt(LocalDateTime.now());
         tip.setUpdatedAt(LocalDateTime.now());
         tipRepository.save(tip);
@@ -119,18 +109,30 @@ public class TipService {
         for (String tagName : new LinkedHashSet<>(tagNames)) {
             if (!StringUtils.hasText(tagName)) continue;
             Tag tag = tagRepository.findByName(tagName)
-                    .orElseGet(() -> tagRepository.save(new Tag(tagName)));
+                    .orElseGet(() -> tagRepository.save(Tag.builder().name(tagName).build()));
             TipTag link = TipTag.builder().tip(tip).tag(tag).build();
             tipTagRepository.save(link);
-            // 메모리 객체도 최신화해서 브로드캐스트 시 태그 보이도록
-            tip.getTipTags().add(link);
+            tip.getTipTags().add(link); // 브로드캐스트용 태그 최신화
         }
 
-        // 보관함 매핑 (중복 방지)
+        // 보관함 매핑 (중복 방지 + 그룹 보관함 권한 체크)
         Storage storage = storageRepository.findById(request.getStorageNo())
                 .orElseThrow(() -> new RuntimeException("Storage not found with id: " + request.getStorageNo()));
+        if (storage.getGroup() != null) {
+            if (!groupMemberRepository.existsByGroupAndUser(storage.getGroup(), user)) {
+                throw new AccessDeniedException("그룹 보관함에 등록하려면 해당 그룹의 멤버여야 합니다.");
+            }
+        } else if (!Objects.equals(storage.getUser().getNo(), userId)) {
+            throw new AccessDeniedException("선택한 보관함은 현재 로그인한 사용자의 소유가 아닙니다.");
+        }
+
         if (!storageTipRepository.existsByStorageAndTip(storage, tip)) {
-            storageTipRepository.save(StorageTip.builder().storage(storage).tip(tip).build());
+            StorageTip storageTip = StorageTip.builder()
+                    .storage(storage)
+                    .tip(tip)
+                    .build();
+            storageTipRepository.save(storageTip);
+            tip.getStorageTips().add(storageTip); // 메모리 컬렉션도 동기화(그룹 알림 누락 방지)
         }
 
         // 공개 피드 브로드캐스트
@@ -164,9 +166,7 @@ public class TipService {
                 .build();
     }
 
-    /* =========================================================
-       3) 수정/삭제 (수정 시 피드 업데이트 방송 유지)
-       ========================================================= */
+    /* 3) 수정/삭제 (수정 시 피드 업데이트 방송 유지) */
     @Transactional
     public TipResponse update(Long tipNo, Long userNo, TipUpdateRequest req) {
         Tip tip = tipRepository.findByNoAndUser_No(tipNo, userNo)
@@ -183,8 +183,7 @@ public class TipService {
                 if (!StringUtils.hasText(name)) continue;
                 Tag tag = tagRepository.findByName(name)
                         .orElseGet(() -> tagRepository.save(Tag.builder().name(name).build()));
-                TipTag tt = TipTag.builder().tip(tip).tag(tag).build();
-                tip.getTipTags().add(tt);
+                tip.getTipTags().add(TipTag.builder().tip(tip).tag(tag).build());
             }
         }
 
@@ -210,9 +209,7 @@ public class TipService {
         tipRepository.delete(tip);
     }
 
-    /* =========================================================
-       4) 자동 생성+등록 (AI 요약 폴링 포함) → 저장 + 태그 + 보관함 + 피드 + 개인 알림
-       ========================================================= */
+    /* 4) 자동 생성+등록 (AI 폴링 포함) → 저장 + 태그 + 보관함 + 피드 + 개인 알림 */
     @Transactional
     public TipResponse createAndRegisterTipAutoAsync(Long userNo, TipAutoCreateRequest request) {
         User user = userRepository.findById(userNo)
@@ -255,7 +252,12 @@ public class TipService {
         }
 
         if (!storageTipRepository.existsByStorageAndTip(storage, savedTip)) {
-            storageTipRepository.save(StorageTip.builder().storage(storage).tip(savedTip).build());
+            StorageTip storageTip = StorageTip.builder()
+                    .storage(storage)
+                    .tip(savedTip)
+                    .build();
+            storageTipRepository.save(storageTip);
+            savedTip.getStorageTips().add(storageTip); // 메모리 컬렉션 동기화(그룹 알림 누락 방지)
         }
 
         Map<String, Object> feed = Map.of(
@@ -337,12 +339,11 @@ public class TipService {
                         .receiver(f.getFollower())
                         .tip(savedTip)
                         .type(NotificationType.FOLLOWING_TIP_UPLOAD)
-                        .read(false)                 // ← isRead()가 아니라 read()
+                        .read(false)
                         .build())
                 .toList();
         if (!notis.isEmpty()) notificationRepository.saveAll(notis);
 
-        // 트랜잭션 커밋 후 WebSocket 개인 큐로 전송되는 이벤트
         follows.forEach(f ->
                 eventPublisher.publishEvent(
                         new NotificationCreatedEvent(
@@ -374,7 +375,7 @@ public class TipService {
                         .receiver(user)
                         .tip(savedTip)
                         .type(NotificationType.GROUP_TIP_UPLOAD)
-                        .read(false)                 // ← isRead()가 아니라 read()
+                        .read(false)
                         .build())
                 .toList();
         if (!notis.isEmpty()) notificationRepository.saveAll(notis);
