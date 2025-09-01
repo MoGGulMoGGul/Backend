@@ -12,8 +12,6 @@ import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 import org.springframework.beans.factory.annotation.Value;
 
-import java.util.List;
-
 @Configuration
 @EnableWebSocketMessageBroker
 @EnableConfigurationProperties(RealtimeProperties.class)
@@ -29,7 +27,7 @@ public class WsConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         var ep = registry.addEndpoint(props.getEndpoint());
-        ep.setAllowedOrigins(allowedOrigins); // 여기만 교체!
+        ep.setAllowedOrigins(allowedOrigins);
         // ep.withSockJS();
     }
 

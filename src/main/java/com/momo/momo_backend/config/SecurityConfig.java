@@ -1,9 +1,7 @@
-// src/main/java/com/momo/momo_backend/config/SecurityConfig.java
 package com.momo.momo_backend.config;
 
 import com.momo.momo_backend.security.CustomUserDetailsService;
 import com.momo.momo_backend.security.JwtAuthenticationFilter;
-import com.momo.momo_backend.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,11 +33,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtTokenProvider jwtTokenProvider;
     private final CustomUserDetailsService customUserDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    // YAML로부터 주입 (콤마 구분)
     @Value("${cors.allowed-origins:}")
     private String corsAllowedOrigins;
 
@@ -55,7 +51,7 @@ public class SecurityConfig {
         return builder.build();
     }
 
-    // 🔧 프로퍼티 기반 CORS 설정(하드코딩 제거)
+    // 프로퍼티 기반 CORS 설정
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration c = new CorsConfiguration();
@@ -87,7 +83,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(
                                 "/api/auth/**",
-                                "/swagger-ui/**",
                                 "/v3/api-docs/**",
                                 "/ws/**",
                                 "/api/query/tips/all",

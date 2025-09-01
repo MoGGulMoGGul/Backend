@@ -1,1 +1,126 @@
-# Backend
+### 모꿀모꿀 (MoggulMoggul) - 백엔드
+![header](https://capsule-render.vercel.app/api?type=waving&color=gradient&height=180&section=header&text=MOGGUL-MOGGUL%20BACKEND&fontSize=55&animation=fadeIn&fontColor=FFF)
+
+<p align="center">
+  <!-- Backend & Language -->
+  <img src="https://img.shields.io/badge/java-%23007396.svg?&style=for-the-badge&logo=java&logoColor=white"/>
+  <img src="https://img.shields.io/badge/spring boot-%236DB33F.svg?&style=for-the-badge&logo=springboot&logoColor=white"/>
+  <img src="https://img.shields.io/badge/spring security-%236DB33F.svg?&style=for-the-badge&logo=springsecurity&logoColor=white"/>
+  <img src="https://img.shields.io/badge/JWT-white?style=for-the-badge&logo=jsonwebtokens&logoColor=black"/>
+  <img src="https://img.shields.io/badge/gradle-%2302303A.svg?&style=for-the-badge&logo=gradle&logoColor=white"/>
+  <br>
+  <!-- Database & Cloud -->
+  <img src="https://img.shields.io/badge/postgresql-%234169E1.svg?&style=for-the-badge&logo=postgresql&logoColor=white"/>
+  <img src="https://img.shields.io/badge/redis-%23DC382D.svg?&style=for-the-badge&logo=redis&logoColor=white"/>
+  <img src="https://img.shields.io/badge/amazon s3-%23569A31.svg?&style=for-the-badge&logo=amazons3&logoColor=white"/>
+  <br>
+  <!-- Tools -->
+  <img src="https://img.shields.io/badge/github-%23181717.svg?&style=for-the-badge&logo=github&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Notion-000000?style=for-the-badge&logo=Notion&logoColor=white"/>
+  <img src="https://img.shields.io/badge/postman-%23FF6C37.svg?&style=for-the-badge&logo=postman&logoColor=white"/>
+</p>
+
+----
+## 프로젝트 개요
+
+
+## Members
+| **이름** | **역할**        | **GitHub**                   |
+|--------|---------------|------------------------------|
+| 구강현    | 백엔드 / 배포 / AI | https://github.com/GangHyoun |
+| 송보민    | 백엔드 / AI      | https://github.com/Songbomin |
+| 정혜지    | 프론트엔드         | https://github.com/heartggs  |
+
+----
+## 프로젝트 구성
+
+### 기술 스택
+- **언어**: Java 17
+- **프레임워크**: Spring Boot 3.5.4
+- **데이터베이스**: PostgreSQL, Redis
+- **인증**: Spring Security, JWT (JSON Web Token)
+- **데이터 액세스**: Spring Data JPA
+- **실시간 통신**: Spring WebSocket (STOMP)
+- **클라우드 서비스**: AWS S3
+- **빌드 도구**: Gradle
+
+### 주요 기능
+- **사용자 인증**: 회원가입, 로그인, 로그아웃, 토큰 재발급 기능 (`src/main/java/com/momo/momo_backend/controller/AuthController.java`)
+- **꿀팁 (Tip)**: URL을 통해 AI가 요약한 꿀팁을 생성, 저장, 수정, 삭제 및 조회 (`src/main/java/com/momo/momo_backend/controller/TipController.java`)
+- **보관함 (Storage)**: 생성된 꿀팁을 개인 또는 그룹 보관함에 저장하고 관리 (`src/main/java/com/momo/momo_backend/controller/StorageController.java`)
+- **소셜 기능**: 사용자 간 팔로우/언팔로우 및 관련 알림 기능 (`src/main/java/com/momo/momo_backend/controller/FollowController.java`)
+- **그룹**: 그룹을 생성하고 멤버를 초대하여 꿀팁을 공유 (`src/main/java/com/momo/momo_backend/controller/GroupController.java`)
+- **북마크**: 마음에 드는 꿀팁을 북마크하고 주간 랭킹 조회 (`src/main/java/com/momo/momo_backend/controller/BookmarkController.java`)
+- **실시간 기능**: 새로운 꿀팁, 알림, 조회수 랭킹 등을 실시간으로 사용자에게 전달 (`src/main/java/com/momo/momo_backend/realtime/service/TipViewsRankService.java`)
+
+---
+
+## 프로젝트 프로그램 설치방법
+
+### 사전 요구사항
+- JDK 17 설치
+- PostgreSQL 데이터베이스 설치 및 실행
+- Redis 서버 실행
+- AWS S3 버킷 및 IAM 자격 증명
+- AI 서버 실행 (꿀팁 요약 기능 연동 시)
+
+### 설치 과정
+
+1. **프로젝트 클론**
+   ```bash
+   git clone [https://github.com/your-username/moggulmoggul-backend.git](https://github.com/your-username/moggulmoggul-backend.git)
+   cd moggulmoggul-backend
+
+2. **application.properties 설정**
+    - src/main/resources/application.properties 파일을 생성하고 CI/CD 워크플로우 파일(.github/workflows/backend-deploy.yml)을 참고하여 아래 내용을 자신의 환경에 맞게 수정합니다.
+
+   # 데이터베이스 설정
+   spring.datasource.url=jdbc:postgresql://<RDS_HOSTNAME>:<RDS_PORT>/<DB_NAME>
+   spring.datasource.username=<RDS_USERNAME>
+   spring.datasource.password=<RDS_PASSWORD>
+   spring.datasource.driver-class-name=org.postgresql.Driver
+   spring.jpa.hibernate.ddl-auto=update
+   spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
+
+   # JWT 설정
+   jwt.secret=<YOUR_JWT_SECRET_KEY>
+
+   # Redis 설정
+   spring.data.redis.host=<REDIS_HOST>
+   spring.data.redis.port=<REDIS_PORT>
+
+   # AWS S3 설정
+   cloud.aws.credentials.access-key=<AWS_ACCESS_KEY>
+   cloud.aws.credentials.secret-key=<AWS_SECRET_KEY>
+   cloud.aws.s3.bucket=<S3_BUCKET_NAME>
+   cloud.aws.region.static=ap-northeast-2
+   cloud.aws.stack.auto=false
+
+   # AI 서버 URL
+   ai.server.url=http://<AI_SERVER_HOST>:8000
+
+   # CORS 설정
+   cors.allowed-origins=http://localhost:3000,[http://your-frontend-domain.com](http://your-frontend-domain.com)
+
+3. **프로젝트 빌드**
+    - 프로젝트 루트 디렉토리에서 아래 명령어를 실행하여 프로젝트를 빌드합니다.
+        ```bash
+        ./gradlew build
+        ```
+
+4. **애플리케이션 실행**
+    - 빌드가 완료되면 아래 명령어로 애플리케이션을 실행합니다.
+         ```bash
+         java -jar build/libs/moggulmoggul-backend-0.0.1-SNAPSHOT.jar
+         ```
+    - 애플리케이션이 성공적으로 실행되면 기본적으로 `http://localhost:8080`에서 접근할 수 있습니다.
+
+# API 엔드포인트
+- 인증: /api/auth (회원가입, 로그인, 로그아웃 등)
+- 꿀팁: /api/tips, /api/query/tips, /api/search/tips (생성, 조회, 검색 등)
+- 보관함: /api/storage, /api/query/storage (생성, 수정, 삭제, 조회)
+- 그룹: /api/groups (생성, 멤버 초대, 조회 등)
+- 팔로우: /api/follow (팔로우, 언팔로우, 목록 조회)
+- 북마크: /api/bookmark (추가, 삭제, 랭킹 조회)
+- 프로필: /api/profile (조회, 수정)
+- 더 자세한 API 명세는 [API 문서 링크](https://www.notion.so/API-22a8aa8cd09580ee904ae7c9479372f8?source=copy_link)를 참고하세요.
