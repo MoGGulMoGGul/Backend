@@ -8,6 +8,7 @@ import lombok.Getter;
 @Builder
 public class FollowerResponse {
     private Long userNo;
+    private String loginId;
     private String nickname;
     private String profileImageUrl;
     private Boolean isFollowing; // 현재 로그인한 사용자가 이 사용자를 팔로우하는지 여부
@@ -15,6 +16,7 @@ public class FollowerResponse {
     public static FollowerResponse from(User user, Boolean isFollowing) {
         return FollowerResponse.builder()
                 .userNo(user.getNo())
+                .loginId(user.getLoginId())
                 .nickname(user.getNickname())
                 .profileImageUrl(user.getProfileImage())
                 .isFollowing(isFollowing)
