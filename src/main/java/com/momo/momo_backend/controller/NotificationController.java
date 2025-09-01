@@ -20,6 +20,9 @@ public class NotificationController {
     @GetMapping
     public ResponseEntity<List<NotificationResponse>> getNotifications(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
+        if (userDetails == null) {
+            return ResponseEntity.status(401).build();
+        }
         List<NotificationResponse> list = notificationService.getNotifications(userDetails.getUser().getNo());
         return ResponseEntity.ok(list);
     }

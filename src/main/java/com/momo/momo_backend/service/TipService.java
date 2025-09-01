@@ -3,11 +3,13 @@ package com.momo.momo_backend.service;
 import com.momo.momo_backend.dto.*;
 import com.momo.momo_backend.entity.*;
 import com.momo.momo_backend.enums.NotificationType;
+import com.momo.momo_backend.realtime.events.NotificationCreatedEvent;
 import com.momo.momo_backend.realtime.service.TipViewsRankService;
 import com.momo.momo_backend.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -19,6 +21,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -40,25 +43,23 @@ public class TipService {
     private final TipTagRepository tipTagRepository;
     private final BookmarkRepository bookmarkRepository;
 
-    // 알림용(팔로우/노티)
+    // 알림용
     private final FollowRepository followRepository;
     private final NotificationRepository notificationRepository;
 
     private final RestTemplate restTemplate;
-    private final TipViewsRankService tipViewsRankService;   // 조회수 랭킹
-    private final SimpMessagingTemplate messagingTemplate;   // 실시간 피드
+    private final TipViewsRankService tipViewsRankService;     // 조회수 랭킹 (미사용이면 추후 정리 가능)
+    private final SimpMessagingTemplate messagingTemplate;     // 공개 피드 브로드캐스트
+    private final ApplicationEventPublisher eventPublisher;    // 개인 큐 푸시(이벤트)
 
     /* =========================================================
-       1) 생성 (URL 수집/초안 저장 + AI 요약 비동기 태스크 큐)
+       1) 생성 (초안 저장 + 요약 비동기 요청)
        ========================================================= */
-
-    /** 컨트롤러에서 호출하는 진입점 */
     @Transactional
     public TipResponse createTip(Long loginUserNo, TipRequest request) {
         return generate(loginUserNo, request);
     }
 
-    /** 실제 생성 로직 (초안 저장 + 요약 비동기 요청) */
     @Transactional
     public TipResponse generate(Long loginUserNo, TipRequest request) {
         if (request == null || !StringUtils.hasText(request.getUrl())) {
@@ -76,15 +77,11 @@ public class TipService {
         tip.setCreatedAt(LocalDateTime.now());
         tip.setUpdatedAt(LocalDateTime.now());
 
-        // AI 요약 비동기 태스크 요청 → taskId만 기록
         String taskId = requestSummaryAsync(request.getUrl());
-        if (taskId != null) {
-            tip.setContentSummary("요약 생성 중... (taskId: " + taskId + ")");
-        } else {
-            tip.setContentSummary("요약 대기 중...");
-        }
+        tip.setContentSummary(taskId != null
+                ? "요약 생성 중... (taskId: " + taskId + ")"
+                : "요약 대기 중...");
 
-        // 초기 태그(선택)
         if (request.getTags() != null && !request.getTags().isEmpty()) {
             List<Tag> tags = upsertTags(request.getTags());
             List<TipTag> tipTags = tags.stream().map(t -> {
@@ -98,13 +95,13 @@ public class TipService {
 
         Tip saved = tipRepository.save(tip);
 
-        // 피드 브로드캐스트
+        // 공개 피드(전체 구독 주제) 브로드캐스트
         Map<String, Object> feed = Map.of(
                 "type", "tip:new",
                 "tipId", saved.getNo(),
-                "author", saved.getUser().getNickname() != null ? saved.getUser().getNickname() : saved.getUser().getLoginId(),
-                "tags", Optional.ofNullable(saved.getTipTags()).orElse(List.of())
-                        .stream().map(tt -> tt.getTag().getName()).toList(),
+                "author", Optional.ofNullable(saved.getUser().getNickname()).orElse(saved.getUser().getLoginId()),
+                "tags", Optional.ofNullable(saved.getTipTags()).orElse(List.of()).stream()
+                        .map(tt -> tt.getTag().getName()).toList(),
                 "createdAt", saved.getCreatedAt(),
                 "v", "v1"
         );
@@ -114,7 +111,6 @@ public class TipService {
         return TipResponse.from(saved);
     }
 
-    /** AI 요약 비동기 작업 요청 */
     private String requestSummaryAsync(String url) {
         try {
             String endpoint = aiApiUrl + "/summary-index";
@@ -130,7 +126,6 @@ public class TipService {
         return null;
     }
 
-    /** 태그 upsert */
     private List<Tag> upsertTags(Collection<String> names) {
         List<String> normalized = names.stream()
                 .filter(StringUtils::hasText)
@@ -154,7 +149,7 @@ public class TipService {
     }
 
     /* =========================================================
-       2) 등록(보관함 연결 + 공개여부 반영)
+       2) 등록(보관함 연결 + 공개여부 반영) → 공개 시 알림 + 실시간 푸시
        ========================================================= */
     @Transactional
     public TipResponse registerTip(TipRegisterRequest request, Long loginUserNo) {
@@ -165,7 +160,6 @@ public class TipService {
         Tip tip = tipRepository.findById(request.getTipId())
                 .orElseThrow(() -> new IllegalArgumentException("팁을 찾을 수 없습니다."));
 
-        // 작성자 확인
         if (!Objects.equals(tip.getUser().getNo(), loginUserNo)) {
             throw new AccessDeniedException("해당 팁에 대한 권한이 없습니다.");
         }
@@ -173,12 +167,10 @@ public class TipService {
         Storage storage = storageRepository.findById(request.getStorageId())
                 .orElseThrow(() -> new IllegalArgumentException("보관함을 찾을 수 없습니다."));
 
-        // 개인 보관함 소유 확인(그룹 보관함 권한 체크는 별도 정책)
         if (storage.getUser() != null && !Objects.equals(storage.getUser().getNo(), loginUserNo)) {
             throw new AccessDeniedException("해당 보관함에 등록할 권한이 없습니다.");
         }
 
-        // 매핑 저장(이미 있으면 무시)
         if (!storageTipRepository.existsByStorageAndTip(storage, tip)) {
             StorageTip st = new StorageTip();
             st.setStorage(storage);
@@ -186,12 +178,17 @@ public class TipService {
             storageTipRepository.save(st);
         }
 
-        // 공개 여부 반영
         if (request.getIsPublic() != null) {
             tip.setIsPublic(Boolean.TRUE.equals(request.getIsPublic()));
         }
         tip.setUpdatedAt(LocalDateTime.now());
         Tip saved = tipRepository.save(tip);
+
+        // 공개글만 알림/푸시
+        if (Boolean.TRUE.equals(saved.getIsPublic())) {
+            notifyFollowers(saved);
+            notifyGroupMembers(saved);
+        }
 
         return TipResponse.from(saved);
     }
@@ -214,13 +211,12 @@ public class TipService {
 
         Tip saved = tipRepository.save(tip);
 
-        // 수정 브로드캐스트
         Map<String, Object> feed = Map.of(
                 "type", "tip:update",
                 "tipId", saved.getNo(),
-                "author", saved.getUser().getNickname() != null ? saved.getUser().getNickname() : saved.getUser().getLoginId(),
-                "tags", Optional.ofNullable(saved.getTipTags()).orElse(List.of())
-                        .stream().map(tt -> tt.getTag().getName()).toList(),
+                "author", Optional.ofNullable(saved.getUser().getNickname()).orElse(saved.getUser().getLoginId()),
+                "tags", Optional.ofNullable(saved.getTipTags()).orElse(List.of()).stream()
+                        .map(tt -> tt.getTag().getName()).toList(),
                 "createdAt", saved.getCreatedAt(),
                 "v", "v1"
         );
@@ -240,14 +236,13 @@ public class TipService {
     }
 
     /* =========================================================
-       4) 자동 생성+등록 (AI 요약 결과 폴링까지 포함한 동기 플로우)
+       4) 자동 생성+등록 (AI 요약 폴링 포함) → 알림 + 실시간 푸시
        ========================================================= */
     @Transactional
     public TipResponse createAndRegisterTipAutoAsync(Long loginUserNo, TipAutoCreateRequest request) {
         User user = userRepository.findById(loginUserNo)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
 
-        // 보관함 확인(개인/그룹 권한)
         Storage storage = storageRepository.findById(request.getStorageNo())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 보관함입니다."));
         if (storage.getGroup() != null) {
@@ -258,23 +253,20 @@ public class TipService {
             throw new AccessDeniedException("선택한 보관함은 현재 로그인한 사용자의 소유가 아닙니다.");
         }
 
-        // 1) AI 태스크 생성 + 결과 폴링
         String taskId = requestSummaryAsync(request.getUrl());
         if (taskId == null) throw new RuntimeException("AI 요약 태스크 생성 실패");
         Map<String, Object> aiData = pollAiSummaryResult(taskId);
 
-        // 2) 팁 생성
         Tip tip = Tip.builder()
                 .user(user)
                 .url(request.getUrl())
                 .title((String) aiData.getOrDefault("title", "제목 없음"))
                 .contentSummary((String) aiData.getOrDefault("summary", ""))
                 .thumbnailUrl((String) aiData.get("thumbnailUrl"))
-                .isPublic(true) // 자동 생성 경로는 공개로 저장(정책에 맞게 조정 가능)
+                .isPublic(true)
                 .build();
         Tip savedTip = tipRepository.save(tip);
 
-        // 태그 반영
         List<String> tags = (List<String>) aiData.get("tags");
         if (tags != null && !tags.isEmpty()) {
             for (String tagName : new LinkedHashSet<>(tags)) {
@@ -286,25 +278,23 @@ public class TipService {
             }
         }
 
-        // 3) 보관함 매핑
         if (!storageTipRepository.existsByStorageAndTip(storage, savedTip)) {
             StorageTip st = StorageTip.builder().storage(storage).tip(savedTip).build();
             storageTipRepository.save(st);
             savedTip.getStorageTips().add(st);
         }
 
-        // 4) 알림 전송
+        // 자동 등록도 알림 + 실시간 푸시
         notifyFollowers(savedTip);
         notifyGroupMembers(savedTip);
 
         return TipResponse.from(savedTip);
     }
 
-    /** AI 작업 결과 폴링 */
     private Map<String, Object> pollAiSummaryResult(String taskId) {
         String resultUrl = aiApiUrl + "/summary-result/" + taskId;
-        int maxRetries = 30;           // 총 60초
-        long pollIntervalMs = 2000L;   // 2초
+        int maxRetries = 30;
+        long pollIntervalMs = 2000L;
 
         for (int i = 0; i < maxRetries; i++) {
             try {
@@ -323,7 +313,6 @@ public class TipService {
                     log.error("AI 결과 조회 실패(HTTP {}): {}", e.getStatusCode(), e.getResponseBodyAsString());
                     throw new RuntimeException("AI 작업 결과를 가져오는 데 실패했습니다.");
                 }
-                // 202(진행중)인 경우 계속 폴링
             } catch (Exception e) {
                 log.error("AI 결과 조회 중 오류: {}", e.getMessage());
                 throw new RuntimeException("AI 작업 결과 조회 오류");
@@ -340,11 +329,18 @@ public class TipService {
     }
 
     /* =========================================================
-       5) 알림(팔로워/그룹)
+       5) 알림(팔로워/그룹) + 개인 큐 푸시(Event)
        ========================================================= */
     private void notifyFollowers(Tip savedTip) {
-        List<Notification> notis = followRepository.findByFollowing(savedTip.getUser())
-                .stream()
+        List<Follow> follows = followRepository.findByFollowing(savedTip.getUser());
+        if (follows.isEmpty()) return;
+
+        String actor = Optional.ofNullable(savedTip.getUser().getNickname())
+                .orElse(savedTip.getUser().getLoginId());
+        String title = StringUtils.hasText(savedTip.getTitle()) ? savedTip.getTitle() : "제목 없음";
+        String message = actor + "님이 새 꿀팁을 등록했습니다: " + title;
+
+        List<Notification> notis = follows.stream()
                 .map(f -> Notification.builder()
                         .receiver(f.getFollower())
                         .tip(savedTip)
@@ -352,17 +348,37 @@ public class TipService {
                         .read(false)
                         .build())
                 .toList();
-        if (!notis.isEmpty()) notificationRepository.saveAll(notis);
+        notificationRepository.saveAll(notis);
+
+        // 실시간 개인 큐 푸시 (AFTER_COMMIT에서 전송)
+        follows.forEach(f ->
+                eventPublisher.publishEvent(
+                        new NotificationCreatedEvent(
+                                f.getFollower().getNo(),
+                                savedTip.getNo(),
+                                message,
+                                Instant.now()
+                        )
+                )
+        );
     }
 
     private void notifyGroupMembers(Tip savedTip) {
-        List<Notification> notis = savedTip.getStorageTips().stream()
+        Set<User> targets = savedTip.getStorageTips().stream()
                 .map(StorageTip::getStorage)
                 .filter(s -> s.getGroup() != null)
                 .flatMap(s -> s.getGroup().getGroupMembers().stream())
                 .map(GroupMember::getUser)
                 .filter(u -> !u.getNo().equals(savedTip.getUser().getNo()))
-                .distinct()
+                .collect(Collectors.toSet());
+        if (targets.isEmpty()) return;
+
+        String actor = Optional.ofNullable(savedTip.getUser().getNickname())
+                .orElse(savedTip.getUser().getLoginId());
+        String title = StringUtils.hasText(savedTip.getTitle()) ? savedTip.getTitle() : "제목 없음";
+        String message = actor + "님이 그룹 보관함에 꿀팁을 등록했습니다: " + title;
+
+        List<Notification> notis = targets.stream()
                 .map(user -> Notification.builder()
                         .receiver(user)
                         .tip(savedTip)
@@ -370,6 +386,18 @@ public class TipService {
                         .read(false)
                         .build())
                 .toList();
-        if (!notis.isEmpty()) notificationRepository.saveAll(notis);
+        notificationRepository.saveAll(notis);
+
+        // 실시간 개인 큐 푸시 (AFTER_COMMIT에서 전송)
+        targets.forEach(u ->
+                eventPublisher.publishEvent(
+                        new NotificationCreatedEvent(
+                                u.getNo(),
+                                savedTip.getNo(),
+                                message,
+                                Instant.now()
+                        )
+                )
+        );
     }
 }
