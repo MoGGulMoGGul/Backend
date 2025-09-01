@@ -18,7 +18,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-
+import java.time.Duration;
 import org.springframework.util.StringUtils;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -63,10 +63,12 @@ public class SecurityConfig {
                     .forEach(c::addAllowedOriginPattern);
         }
 
-        c.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
-        c.setAllowedHeaders(List.of("Authorization","Content-Type","X-Requested-With"));
+        c.addAllowedMethod(CorsConfiguration.ALL);
+        c.addAllowedHeader(CorsConfiguration.ALL);
+
         c.setAllowCredentials(true);
         c.setExposedHeaders(List.of("Location","Authorization"));
+        c.setMaxAge(Duration.ofHours(1)); // 선택
 
         UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();
         src.registerCorsConfiguration("/**", c);
