@@ -29,7 +29,7 @@ public class JwtStompChannelInterceptor implements ChannelInterceptor {
         if (cmd == StompCommand.CONNECT || cmd == StompCommand.SUBSCRIBE || cmd == StompCommand.SEND) {
             String token = extractBearer(accessor); // raw JWT
             if (token != null && jwtTokenProvider.validateToken(token)) {
-                // ✅ Principal.name을 userNo 문자열로 세팅
+                // Principal.name을 userNo 문자열로 세팅
                 Long userNo = jwtTokenProvider.getUserNo(token); // <-- 존재하는 메서드명 사용
                 if (userNo != null) {
                     Authentication auth =

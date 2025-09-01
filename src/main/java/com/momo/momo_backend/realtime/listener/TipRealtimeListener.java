@@ -18,7 +18,7 @@ public class TipRealtimeListener {
     private final SimpMessagingTemplate messaging;
     private final EventPayloadFactory payloadFactory;
     private final RealtimeProperties props;
-    private final TipQueryPort tipQuery; // ✅ 추가
+    private final TipQueryPort tipQuery;
 
     /** 등록 직후: 가능하면 full, 불가능하면 minimal */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)

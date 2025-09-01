@@ -21,7 +21,7 @@ public class NotificationResponse {
     public static NotificationResponse fromEntity(Notification n) {
         return NotificationResponse.builder()
                 .id(n.getNo())
-                .type(n.getType().name())              // ✅ enum → String
+                .type(n.getType().name())              // enum → String
                 .isRead(n.isRead())
                 .createdAt(n.getCreatedAt())
                 .tipId(n.getTip() != null ? n.getTip().getNo() : null)

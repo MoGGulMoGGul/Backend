@@ -74,7 +74,7 @@ public class GroupService {
         }
 
         List<String> results = new ArrayList<>();
-        // ✨ userLoginIds 목록을 반복하며 초대 로직 수행
+        // userLoginIds 목록을 반복하며 초대 로직 수행
         Set<String> uniqueLoginIds = new LinkedHashSet<>(request.getUserLoginIds()); // 중복 아이디 제거
 
         for (String loginId : uniqueLoginIds) {

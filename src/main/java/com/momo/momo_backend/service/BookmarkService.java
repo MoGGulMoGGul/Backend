@@ -25,7 +25,7 @@ public class BookmarkService {
     private final StorageRepository storageRepository;
     private final StorageTipRepository storageTipRepository;
 
-    private final ApplicationEventPublisher eventPublisher;          // ✅ 추가
+    private final ApplicationEventPublisher eventPublisher;          // 추가
 
     /** 단순 북마크 추가 */
     public void addBookmark(Long tipNo, User user) {

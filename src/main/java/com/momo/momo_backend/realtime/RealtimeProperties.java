@@ -38,7 +38,7 @@ public class RealtimeProperties {
     public static class Topics {
         private String feed = "/topic/feed";
         private String challengeRank = "/topic/challenge/{id}/rank";
-        // ✅ '/user'는 Spring이 자동 프리픽스하므로 여기서는 '/queue/...'만 적는다
+        // '/user'는 Spring이 자동 프리픽스하므로 여기서는 '/queue/...'만 적는다
         private String userNotificationQueue = "/queue/notifications";
         private String tipViewsRank = "/topic/tips/rank/views";
 

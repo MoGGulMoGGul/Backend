@@ -7,13 +7,13 @@ import com.momo.momo_backend.enums.NotificationType;
 import com.momo.momo_backend.repository.FollowRepository;
 import com.momo.momo_backend.repository.NotificationRepository;
 import com.momo.momo_backend.repository.UserRepository;
-import com.momo.momo_backend.realtime.events.NotificationCreatedEvent; // ✅ 추가
+import com.momo.momo_backend.realtime.events.NotificationCreatedEvent;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.ApplicationEventPublisher;              // ✅ 추가
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;                                             // ✅ 추가
+import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
@@ -23,7 +23,7 @@ public class FollowService {
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;
 
-    private final ApplicationEventPublisher eventPublisher;          // ✅ 추가
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public void followUser(Long followerNo, String followeeLoginId) {

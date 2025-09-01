@@ -27,7 +27,7 @@ public class AuthService {
     private final UserCredentialRepository credentialRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
-    private final StringRedisTemplate stringRedisTemplate; // ✅ 변경
+    private final StringRedisTemplate stringRedisTemplate;
 
     private String rtKey(String loginId) {
         return "RT:" + loginId;
@@ -61,7 +61,7 @@ public class AuthService {
     }
 
     /* -------------------------- 로그인 -------------------------- */
-    @Transactional // ✅ readOnly 제거 (Redis 쓰기 포함)
+    @Transactional // readOnly 제거 (Redis 쓰기 포함)
     public LoginResponse login(LoginRequest request) {
         UserCredential credential = credentialRepository.findByLoginId(request.getId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
@@ -77,7 +77,7 @@ public class AuthService {
         String accessToken = jwtTokenProvider.createAccessToken(userNo, loginId);
         String refreshToken = jwtTokenProvider.createRefreshToken(userNo, loginId);
 
-        // ✅ Redis에 Refresh 저장 (문자열)
+        // Redis에 Refresh 저장 (문자열)
         String key = rtKey(loginId);
         stringRedisTemplate.opsForValue().set(
                 key,
