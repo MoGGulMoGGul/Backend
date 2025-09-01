@@ -27,17 +27,34 @@ public class JwtStompChannelInterceptor implements ChannelInterceptor {
         StompCommand cmd = accessor.getCommand();
 
         if (cmd == StompCommand.CONNECT || cmd == StompCommand.SUBSCRIBE || cmd == StompCommand.SEND) {
+            // 1) Bearer 추출
             String token = extractBearer(accessor); // raw JWT
+
+            // 2) 디버그: CONNECT 프레임에 Authorization 헤더가 있었는지/토큰 앞 10자
+            log.debug("STOMP {} rawHeaderExists={} tokenPrefix={}",
+                    cmd,
+                    accessor.getNativeHeader("Authorization") != null || accessor.getNativeHeader("authorization") != null,
+                    token != null && token.length() >= 10 ? token.substring(0, 10) : "null");
+
+            // 3) 디버그: 토큰에서 userNo 파싱 시도(유효성 검증 전/후 어디든 가능하지만 여기서 한 번 찍어보는게 원인 파악에 도움)
+            if (token != null) {
+                try {
+                    Long parsedUserNo = jwtTokenProvider.getUserNo(token);
+                    log.debug("STOMP {} parsed userNo={}", cmd, parsedUserNo);
+                } catch (Exception e) {
+                    log.debug("STOMP {} getUserNo threw: {}", cmd, e.toString());
+                }
+            }
+
+            // 4) 기존 로직: 토큰 검증 및 Principal 세팅
             if (token != null && jwtTokenProvider.validateToken(token)) {
-                // Principal.name을 userNo 문자열로 세팅
-                Long userNo = jwtTokenProvider.getUserNo(token); // <-- 존재하는 메서드명 사용
+                Long userNo = jwtTokenProvider.getUserNo(token);
                 if (userNo != null) {
                     Authentication auth =
                             new UsernamePasswordAuthenticationToken(String.valueOf(userNo), null, List.of());
                     accessor.setUser(auth);
                     log.debug("STOMP {} -> authenticated userNo={}", cmd, userNo);
                 } else {
-                    // userNo 클레임이 없으면 loginId로 폴백(개인 큐 매칭은 안될 수 있음)
                     String loginId = jwtTokenProvider.getUserIdFromToken(token);
                     if (loginId != null) {
                         accessor.setUser(new UsernamePasswordAuthenticationToken(loginId, null, List.of()));
