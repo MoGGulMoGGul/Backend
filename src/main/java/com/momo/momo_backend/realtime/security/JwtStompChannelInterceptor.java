@@ -8,10 +8,15 @@ import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
+import org.springframework.messaging.support.MessageBuilder;
+import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
+import java.util.Collections;
 import java.util.List;
 
 @Slf4j
@@ -23,51 +28,59 @@ public class JwtStompChannelInterceptor implements ChannelInterceptor {
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
-        StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
-        StompCommand cmd = accessor.getCommand();
+        StompHeaderAccessor acc = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+        if (acc == null) return message;
 
-        if (cmd == StompCommand.CONNECT || cmd == StompCommand.SUBSCRIBE || cmd == StompCommand.SEND) {
-            // 1) Bearer 추출
-            String token = extractBearer(accessor); // raw JWT
+        StompCommand cmd = acc.getCommand();
 
-            // 2) 디버그: CONNECT 프레임에 Authorization 헤더가 있었는지/토큰 앞 10자
-            log.debug("STOMP {} rawHeaderExists={} tokenPrefix={}",
-                    cmd,
-                    accessor.getNativeHeader("Authorization") != null || accessor.getNativeHeader("authorization") != null,
+        // ★ CONNECT 단계에서만 Principal 세팅 (SUBSCRIBE/SEND는 기존 principal 그대로 사용)
+        if (StompCommand.CONNECT.equals(cmd)) {
+            String token = extractBearer(acc); // raw JWT
+            log.debug("STOMP CONNECT rawHeaderExists={} tokenPrefix={}",
+                    acc.getNativeHeader("Authorization") != null || acc.getNativeHeader("authorization") != null,
                     token != null && token.length() >= 10 ? token.substring(0, 10) : "null");
 
-            // 3) 디버그: 토큰에서 userNo 파싱 시도(유효성 검증 전/후 어디든 가능하지만 여기서 한 번 찍어보는게 원인 파악에 도움)
-            if (token != null) {
+            String principalName = null;
+            if (StringUtils.hasText(token) && jwtTokenProvider.validateToken(token)) {
+                Long userNo = null;
                 try {
-                    Long parsedUserNo = jwtTokenProvider.getUserNo(token);
-                    log.debug("STOMP {} parsed userNo={}", cmd, parsedUserNo);
+                    userNo = jwtTokenProvider.getUserNo(token); // Long or null
+                    log.debug("STOMP CONNECT parsed userNo={}", userNo);
                 } catch (Exception e) {
-                    log.debug("STOMP {} getUserNo threw: {}", cmd, e.toString());
+                    log.debug("STOMP CONNECT getUserNo threw: {}", e.toString());
                 }
-            }
 
-            // 4) 기존 로직: 토큰 검증 및 Principal 세팅
-            if (token != null && jwtTokenProvider.validateToken(token)) {
-                Long userNo = jwtTokenProvider.getUserNo(token);
                 if (userNo != null) {
-                    Authentication auth =
-                            new UsernamePasswordAuthenticationToken(String.valueOf(userNo), null, List.of());
-                    accessor.setUser(auth);
-                    log.debug("STOMP {} -> authenticated userNo={}", cmd, userNo);
+                    principalName = String.valueOf(userNo); // 개인 큐 라우팅 키는 "userNo" 문자열
                 } else {
-                    String loginId = jwtTokenProvider.getUserIdFromToken(token);
-                    if (loginId != null) {
-                        accessor.setUser(new UsernamePasswordAuthenticationToken(loginId, null, List.of()));
-                        log.warn("STOMP {} -> token has no userNo claim; set Principal to loginId={}, "
-                                + "personal queue routing may not match (expects userNo string)", cmd, loginId);
-                    } else {
-                        log.debug("STOMP {} -> valid token but missing userNo/loginId", cmd);
-                    }
+                    // 폴백: loginId가 있으면 세팅하되, /user 라우팅은 userNo를 기대하므로 경고
+                    try {
+                        String loginId = jwtTokenProvider.getUserIdFromToken(token);
+                        if (StringUtils.hasText(loginId)) {
+                            principalName = loginId;
+                            log.warn("STOMP CONNECT -> token has no userNo; set principal to loginId='{}' "
+                                    + "(personal-queue routing expects userNo string)", loginId);
+                        }
+                    } catch (Exception ignored) { }
                 }
             } else {
-                log.debug("STOMP {} without/invalid token (public endpoints may allow)", cmd);
+                log.debug("STOMP CONNECT without/invalid token (public endpoints may allow)");
             }
+
+            if (StringUtils.hasText(principalName)) {
+                Authentication auth = new UsernamePasswordAuthenticationToken(
+                        principalName, "N/A", Collections.emptyList()
+                );
+                acc.setUser(auth);                                      // ★ STOMP 세션에 Principal 주입
+                SecurityContextHolder.getContext().setAuthentication(auth); // (선택) SecurityContext에도 반영
+                log.debug("STOMP CONNECT -> authenticated principal='{}'", principalName);
+            }
+
+            // ★★ 중요: 수정된 헤더로 새 메시지를 만들어 반환해야 acc 변경이 확실히 반영됨
+            return MessageBuilder.createMessage(message.getPayload(), acc.getMessageHeaders());
         }
+
+        // CONNECT 이외 : 그냥 통과 (principal은 CONNECT에서 이미 세팅됨)
         return message;
     }
 
@@ -78,9 +91,7 @@ public class JwtStompChannelInterceptor implements ChannelInterceptor {
         }
         if (headers != null && !headers.isEmpty()) {
             String raw = headers.get(0);
-            if (raw != null && raw.startsWith("Bearer ")) {
-                return raw.substring(7);
-            }
+            if (raw != null && raw.startsWith("Bearer ")) return raw.substring(7);
         }
         return null;
     }
