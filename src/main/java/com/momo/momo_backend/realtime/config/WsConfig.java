@@ -4,9 +4,12 @@ import com.momo.momo_backend.realtime.RealtimeProperties;
 import com.momo.momo_backend.realtime.security.JwtStompChannelInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
@@ -32,14 +35,22 @@ public class WsConfig implements WebSocketMessageBrokerConfigurer {
     }
 
     @Override
-    public void configureMessageBroker(MessageBrokerRegistry registry) {
-        registry.enableSimpleBroker("/topic", "/queue");
-        registry.setApplicationDestinationPrefixes(props.getAppPrefix());
-        registry.setUserDestinationPrefix(props.getUserDestinationPrefix());
-    }
-
-    @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
         registration.interceptors(jwtStompChannelInterceptor);
     }
+
+    @Bean
+    public TaskScheduler brokerTaskScheduler() {
+        return new ThreadPoolTaskScheduler(); // poolSize/treadNamePrefix 선택 설정
+    }
+
+    @Override
+    public void configureMessageBroker(MessageBrokerRegistry r) {
+        r.enableSimpleBroker("/topic", "/queue")
+                .setTaskScheduler(brokerTaskScheduler())
+                .setHeartbeatValue(new long[]{10000, 10000}); // 10s/10s
+        r.setApplicationDestinationPrefixes(props.getAppPrefix());
+        r.setUserDestinationPrefix(props.getUserDestinationPrefix());
+    }
+
 }
