@@ -41,6 +41,8 @@ jobs:
           echo "ai.server.url=http://${{ secrets.AI_SERVER_HOST }}:8000" >> $PROPERTIES_PATH
           echo "spring.jpa.hibernate.ddl-auto=update" >> application.properties
           echo "cors.allowed-origins=${{ secrets.CORS_ALLOWED_ORIGINS }}" >> $PROPERTIES_PATH
+          
+          echo "logging.level.com.momo.momo_backend.realtime.security.JwtStompChannelInterceptor=DEBUG" >> $PROPERTIES_PATH
 
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
@@ -117,3 +119,26 @@ jobs:
               nohup java -jar app.jar > backend.log 2>&1 &
               echo '--- Server start command executed ---'
             "
+
+#      - name: Copy Nginx config to EC2
+#        uses: appleboy/scp-action@master
+#        with:
+#          host: ${{ secrets.EC2_HOST }} # EC2 IP
+#          username: ${{ secrets.EC2_USERNAME }} # ubuntu 등
+#          key: ${{ secrets.EC2_SSH_KEY }}
+#          source: ".nginx/nginx.conf" # 1단계에서 생성한 파일 경로
+#          target: "/etc/nginx/sites-available/" # EC2의 Nginx 설정 폴더
+#
+#      - name: Restart Nginx on EC2
+#        uses: appleboy/ssh-action@master
+#        with:
+#          host: ${{ secrets.EC2_HOST }}
+#          username: ${{ secrets.EC2_USERNAME }}
+#          key: ${{ secrets.EC2_SSH_KEY }}
+#          script: |
+#            # 기존 심볼릭 링크가 있다면 제거하고 새로 연결
+#            sudo ln -sf /etc/nginx/sites-available/nginx.conf /etc/nginx/sites-enabled/default
+#            # Nginx 설정 문법 검사
+#            sudo nginx -t
+#            # Nginx 서비스 재시작
+#            sudo systemctl restart nginx

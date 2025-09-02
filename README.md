@@ -97,7 +97,7 @@ API 제공, AI 연동 및 꿀팁 생성, 소셜 기능 처리, 핵심 데이터 
    cd moggulmoggul-backend
 
 2. **application.properties 설정**
-    - src/main/resources/application.properties 파일을 생성하고 CI/CD 워크플로우 파일(.github/workflows/backend-deploy.yml)을 참고하여 아래 내용을 자신의 환경에 맞게 수정합니다.
+   - src/main/resources/application.properties 파일을 생성하고 CI/CD 워크플로우 파일(.github/workflows/backend-deploy.yml)을 참고하여 아래 내용을 자신의 환경에 맞게 수정합니다.
 
    #### 데이터베이스 설정
    ```
@@ -128,12 +128,12 @@ API 제공, AI 연동 및 꿀팁 생성, 소셜 기능 처리, 핵심 데이터 
       cloud.aws.region.static=ap-northeast-2
       cloud.aws.stack.auto=false
       ```
-   
+
    #### AI 서버 URL
       ```
       ai.server.url=http://<AI_SERVER_HOST>:8000
       ```
-   
+
    #### CORS 설정
       ```
       cors.allowed-origins=http://localhost:3000,[http://your-frontend-domain.com](http://your-frontend-domain.com)
@@ -152,7 +152,7 @@ API 제공, AI 연동 및 꿀팁 생성, 소셜 기능 처리, 핵심 데이터 
     ```bash
     java -jar build/libs/moggulmoggul-backend-0.0.1-SNAPSHOT.jar
     ```
-    - 애플리케이션이 성공적으로 실행되면 기본적으로 `http://localhost:8080`에서 접근할 수 있습니다.
+   - 애플리케이션이 성공적으로 실행되면 기본적으로 `http://localhost:8080`에서 접근할 수 있습니다.
 
 ---
 
