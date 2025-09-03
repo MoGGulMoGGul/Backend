@@ -15,5 +15,6 @@ public record NotificationEvent(
         Long tipId,         // 해당되면 포함 (없으면 null)
         String message,     // 사용자에게 보여줄 간단 메시지
         Instant createdAt,
-        String v            // "v1"
+        String v,           // "v1"
+        String url          // 상세로 이동할 URL (tipId 있으면 "/tips/{id}")
 ) {}

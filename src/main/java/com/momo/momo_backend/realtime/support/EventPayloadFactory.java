@@ -8,7 +8,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -54,13 +53,21 @@ public class EventPayloadFactory {
                 .build();
     }
 
-    public NotificationEvent notificationNew(Long tipId, String message, Instant createdAt) {
+    /** 새 알림 페이로드 (URL 명시) */
+    public NotificationEvent notificationNew(Long tipId, String message, Instant createdAt, String url) {
         return NotificationEvent.builder()
                 .type(EventTypes.NOTIFICATION_NEW)
                 .tipId(tipId)
                 .message(message)
                 .createdAt(createdAt != null ? createdAt : Instant.now())
                 .v(props.getSchemaVersion())
+                .url(url)
                 .build();
+    }
+
+    /** (호환용) 기존 시그니처 유지: tipId가 있으면 자동으로 "/tips/{id}" 링크 생성 */
+    public NotificationEvent notificationNew(Long tipId, String message, Instant createdAt) {
+        String autoUrl = (tipId != null) ? ("/tips/" + tipId) : null;
+        return notificationNew(tipId, message, createdAt, autoUrl);
     }
 }

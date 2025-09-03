@@ -144,7 +144,7 @@ public class TipService {
                 "createdAt", tip.getCreatedAt(),
                 "v", "v1"
         );
-        messagingTemplate.convertAndSend("/topic/feed", feed);
+       // messagingTemplate.convertAndSend("/topic/feed", feed);
 
         // 공개글이면 알림 저장 + 개인 큐 이벤트
         if (Boolean.TRUE.equals(tip.getIsPublic())) {
@@ -197,7 +197,7 @@ public class TipService {
                 "createdAt", saved.getCreatedAt(),
                 "v", "v1"
         );
-        messagingTemplate.convertAndSend("/topic/feed", feed);
+        // messagingTemplate.convertAndSend("/topic/feed", feed);
 
         return TipResponse.from(saved);
     }
@@ -268,7 +268,7 @@ public class TipService {
                 "createdAt", savedTip.getCreatedAt(),
                 "v", "v1"
         );
-        messagingTemplate.convertAndSend("/topic/feed", feed);
+        // messagingTemplate.convertAndSend("/topic/feed", feed);
 
         notifyFollowers(savedTip);
         notifyGroupMembers(savedTip);
