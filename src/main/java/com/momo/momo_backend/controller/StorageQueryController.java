@@ -99,22 +99,15 @@ public class StorageQueryController {
     }
 
     // 사용자가 속한 모든 그룹의 보관함 조회 API
-    @GetMapping("/groups/user/{userNo}")
+    @GetMapping("/group-all")
     public ResponseEntity<?> getStoragesForUserGroups(
-            @PathVariable Long userNo,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        log.info("사용자의 모든 그룹 보관함 조회 요청 - 요청 사용자: {}, 조회 대상 사용자: {}", userDetails.getUsername(), userNo);
+        log.info("사용자의 모든 그룹 보관함 조회 요청 - 요청 사용자: {}", userDetails.getUsername());
         try {
-            Long requestingUserNo = userDetails.getUser().getNo();
-
-            // 보안을 위해 요청하는 사용자의 userNo와 경로 변수의 userNo가 일치하는지 확인
-            if (!requestingUserNo.equals(userNo)) {
-                throw new AccessDeniedException("다른 사용자의 그룹 보관함 목록을 조회할 권한이 없습니다.");
-            }
+            Long userNo = userDetails.getUser().getNo();
 
             List<Storage> storages = storageQueryService.findStoragesForUserGroups(userNo);
 
-            // GroupStorageResponse DTO 리스트로 변환
             List<GroupStorageResponse> responseList = storages.stream()
                     .map(GroupStorageResponse::from)
                     .collect(Collectors.toList());
