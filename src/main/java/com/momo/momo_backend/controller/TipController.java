@@ -20,7 +20,7 @@ public class TipController {
 
     private final TipService tipService;
 
-    /** 꿀팁 생성 (AI 요약 요청만; DB 저장/WS 없음) */
+    /** 꿀팁 생성 */
     @PostMapping("/generate")
     public ResponseEntity<TipCreateResponse> createTip(
             @RequestBody TipCreateRequest request,
@@ -39,7 +39,7 @@ public class TipController {
         }
     }
 
-    /** 꿀팁 최종 등록 — 서비스에서 DB저장 + 태그 upsert + 알림/WS 처리 */
+    /** 꿀팁 등록 */
     @PostMapping("/register")
     public ResponseEntity<TipRegisterResponse> registerTip(
             @RequestBody @Valid TipRegisterRequest request,

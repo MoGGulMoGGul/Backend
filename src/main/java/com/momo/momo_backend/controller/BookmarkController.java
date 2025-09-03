@@ -25,7 +25,7 @@ public class BookmarkController {
                                             @AuthenticationPrincipal CustomUserDetails userDetails) {
         bookmarkService.addBookmark(tipNo, userDetails.getUser());
         return ResponseEntity.ok().build();
-    } // 메서드 닫는 중괄호 추가
+    }
 
     // 북마크 생성
     @PostMapping

@@ -24,10 +24,10 @@ public class BookmarkService {
     private final NotificationRepository notificationRepository;
     private final StorageRepository storageRepository;
     private final StorageTipRepository storageTipRepository;
+    private final GroupMemberRepository groupMemberRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
-    private final ApplicationEventPublisher eventPublisher;          // 추가
 
-    /** 단순 북마크 추가 */
     public void addBookmark(Long tipNo, User user) {
         Tip tip = tipRepository.findById(tipNo)
                 .orElseThrow(() -> new IllegalArgumentException("해당 꿀팁을 찾을 수 없습니다."));
@@ -48,11 +48,8 @@ public class BookmarkService {
     public void delete(Long bookmarkNo, Long userNo) {
         Bookmark bookmark = bookmarkRepository.findByNoAndUser_No(bookmarkNo, userNo)
                 .orElseThrow(() -> new AccessDeniedException("해당 즐겨찾기를 삭제할 권한이 없거나, 즐겨찾기가 존재하지 않습니다."));
-
         Tip tipToDelete = bookmark.getTip();
         User user = bookmark.getUser();
-
-        // 구현되어 있다고 가정한 커스텀 삭제 로직
         storageTipRepository.deleteByTipAndUser(tipToDelete, user);
 
         bookmarkRepository.delete(bookmark);
@@ -67,10 +64,23 @@ public class BookmarkService {
         Storage storage = storageRepository.findById(request.getStorageNo())
                 .orElseThrow(() -> new IllegalArgumentException("보관함을 찾을 수 없습니다."));
 
-        if (!storage.getUser().getNo().equals(userNo)) {
-            throw new AccessDeniedException("해당 보관함에 저장할 권한이 없습니다.");
+        // 보관함에 꿀팁을 저장할 수 있는 권한을 확인
+        // 개인 보관함인 경우: 보관함 소유자만 가능
+        // 그룹 보관함인 경우: 그룹 멤버라면 가능
+        if (storage.getGroup() != null) {
+            // 그룹 보관함인 경우, 사용자가 해당 그룹의 멤버인지 확인
+            boolean isMember = groupMemberRepository.existsByGroupAndUser(storage.getGroup(), user);
+            if (!isMember) {
+                throw new AccessDeniedException("그룹 보관함에 저장할 권한이 없습니다.");
+            }
+        } else {
+            // 개인 보관함인 경우, 보관함 소유자 본인인지 확인
+            if (!storage.getUser().getNo().equals(userNo)) {
+                throw new AccessDeniedException("개인 보관함에 저장할 권한이 없습니다.");
+            }
         }
 
+        // 중복 북마크 확인 후 저장
         if (!bookmarkRepository.existsByUserAndTip(user, tip)) {
             Bookmark bookmark = Bookmark.builder()
                     .user(user)
@@ -81,6 +91,7 @@ public class BookmarkService {
             notifyTipOwnerOfBookmark(tip, user);
         }
 
+        // 중복 저장 확인 후 저장
         if (!storageTipRepository.existsByStorageAndTip(storage, tip)) {
             StorageTip storageTip = StorageTip.builder()
                     .storage(storage)

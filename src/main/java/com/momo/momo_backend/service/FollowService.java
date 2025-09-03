@@ -54,7 +54,7 @@ public class FollowService {
         );
         notificationRepository.save(notification);
 
-        // ✅ 저장 직후, 개인 큐 전송용 이벤트 발행
+        // 저장 직후, 개인 큐 전송용 이벤트 발행
         String actorName = follower.getNickname() != null ? follower.getNickname() : follower.getLoginId();
         String message   = actorName + "님이 당신을 팔로우했습니다.";
 
