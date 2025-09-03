@@ -52,6 +52,8 @@ API 제공, AI 연동 및 꿀팁 생성, 소셜 기능 처리, 핵심 데이터 
 
 ## 툴체인 & 프레임워크
 
+
+
 ### 프레임워크
 
 | 분류 | 사용 기술 | 설명 |
@@ -169,6 +171,136 @@ API 제공, AI 연동 및 꿀팁 생성, 소셜 기능 처리, 핵심 데이터 
 
 ---
 
+## 실시간(WS/STOMP)
+
+### 엔드포인트 & 프리픽스
+- **STOMP**: `wss://<HOST>/ws` *(로컬: `ws://localhost:8080/ws`)*
+- **App / User Prefix**: `/app`, `/user`
+- **토픽**
+   - 공개 피드: `/topic/feed`
+   - 조회수 랭킹: `/topic/tips/rank/views`
+   - 개인 알림: `/user/queue/notifications`
+- **인증**: STOMP 헤더 `Authorization: Bearer <ACCESS_TOKEN>` *(CONNECT 시 검증)*
+
+### 이벤트 페이로드 (요약)
+
+**피드** — 구독: `/topic/feed`
+```json
+{ "type": "tip:new", "tipId": 123, "title": "제목", "createdAt": "2025-09-01T10:12:34Z", "v": "v1" }
+```
+- `type`: `tip:new` | `tip:update`
+- 선택 필드: `author`, `tags`, `thumbnailUrl`
+
+**랭킹** — 구독: `/topic/tips/rank/views`
+```json
+{ "type": "tip:views:rank:update", "leaderboard": [{ "tipId": 12, "score": 101.0 }], "v": "v1" }
+```
+
+**알림** — 구독: `/user/queue/notifications`
+```json
+{ "type": "notification:new", "message": "새 팁 등록", "tipId": 123, "url": "/tips/123", "v": "v1" }
+```
+
+### 브라우저 예제 (@stomp/stompjs)
+```html
+<script src="https://unpkg.com/@stomp/stompjs/umd/stomp.umd.min.js"></script>
+<script>
+  const client = new StompJs.Client({
+    brokerURL: "wss://<HOST>/ws",
+    connectHeaders: { Authorization: `Bearer <ACCESS_TOKEN>` },
+    onConnect: () => {
+      client.subscribe("/topic/feed", (m) => console.log("FEED", JSON.parse(m.body)));
+      client.subscribe("/user/queue/notifications", (m) => console.log("NOTI", JSON.parse(m.body)));
+      client.subscribe("/topic/tips/rank/views", (m) => console.log("RANK", JSON.parse(m.body)));
+    }
+  });
+  client.activate();
+</script>
+```
+> SockJS 필요 시 서버 `.withSockJS()` 사용, 클라이언트는 `webSocketFactory` 지정.
+
+---
+
+## 6) 데이터 모델
+
+- **User** 1:N **Tip / Bookmark / Notification / Storage**
+- **Tip** N:1 **User**, N:M **Tag(TipTag)**, N:M **Storage(StorageTip)**, 1:N **Bookmark** *(조회수 랭킹: Redis ZSET)*
+- **Storage** N:1 **User** 또는 **Group**, N:M **Tip**
+- **Group** 1:N **GroupMember**
+- **Follow** *(follower → following)*
+- **Notification** N:1 **User(receiver)**, (옵션) N:1 **Tip**
+- **자격 엔티티**: **UserCredential / UserOAuthConnection / Oauth2Provider**
+
+### 제약 & 인덱스
+- **유니크**: `Follow(follower,following)`, `Bookmark(user,tip)`, `TipTag(tip,tag)`, `StorageTip(storage,tip)`
+- **인덱스**: `Tip(createdAt,user)`, `TipTag(tag)`, `Bookmark(user,tip)`, `StorageTip(storage)`
+
+---
+
+## AI 파이프라인 핵심 흐름
+
+**생성 요청 (클→백)**
+```http
+POST /api/tips/generate
+Content-Type: application/json
+
+{ "url": "https://example.com/post/123" }
+```
+
+**비동기 작업 (백→AI)**
+```http
+POST {AI_SERVER}/async-index
+```
+```json
+{ "task_id": "abcd-efgh-1234" }
+```
+
+**폴링 (백→AI) — 예: 최대 30회/2초 간격**
+```http
+GET {AI_SERVER}/task-status/{task_id}
+```
+**완료**
+```json
+{ "status": "done", "result": { "title": "…", "summary": "…", "tags": ["…"], "thumbnail": "…" } }
+```
+**대기**
+```json
+{ "status": "pending" }
+```
+
+**최종 등록 (클→백)**
+```http
+POST /api/tips/register
+```
+- 반영: `title/summary/tags/thumbnail`
+- 후속: 알림 전송 · 피드 발행
+
+**등록 규칙**
+- 태그: 중복 제거 후 없으면 생성(연결: TipTag)
+- 보관함: 없으면 생성/연결(StorageTip)
+- (선택) URL 중복 방지/머지 정책 운영
+
+---
+
+## 보안 체크리스트
+
+- **비밀번호**: BCrypt
+- **JWT**
+   - Access: 헤더 `Authorization: Bearer <token>`
+   - Refresh: **HttpOnly + Secure + SameSite=None + Path=/** *( Secure → HTTPS 전용)*
+- **공개 엔드포인트(예)**: `/api/auth/**`, `/v3/api-docs/**`, `/ws/**`, 일부 조회/검색, 주간 랭킹
+- **CORS**: `cors.allowed-origins`(쉼표 구분). 운영은 **정확한 오리진만**, `Allow-Credentials=true` 및 `Authorization/Content-Type` 허용 확인
+
+---
+
+##  프로젝트 아키텍처
+
+- **인증**: `JwtAuthenticationFilter`로 모든 요청 JWT 검증 → Access 만료 시 `/api/auth/refresh`로 **쿠키 RT** 재발급 → 로그아웃 시 **Access 블랙리스트**, **Refresh 삭제**
+- **AI 요약**: `generate` → **AI async-index** → **task-status 폴링** → `register` 반영(제목/요약/태그/썸네일)
+- **실시간**: WebSocket/STOMP `/ws`, `JwtStompChannelInterceptor`로 CONNECT 시 JWT 검증, **AFTER_COMMIT** 이벤트만 브로드캐스트(정합성 보장)
+
+
+---
 ## 프로젝트 URL
 - **Main** : https://github.com/MoGGulMoGGul
 - **FrontEnd** : https://github.com/MoGGulMoGGul/Frontend
