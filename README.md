@@ -182,7 +182,7 @@ API 제공, AI 연동 및 꿀팁 생성, 소셜 기능 처리, 핵심 데이터 
    - 개인 알림: `/user/queue/notifications`
 - **인증**: STOMP 헤더 `Authorization: Bearer <ACCESS_TOKEN>` *(CONNECT 시 검증)*
 
-### 이벤트 페이로드 (요약)
+### 이벤트 페이로드
 
 **피드** — 구독: `/topic/feed`
 ```json
