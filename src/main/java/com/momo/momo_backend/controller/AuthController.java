@@ -161,4 +161,21 @@ public class AuthController {
                             .build());
         }
     }
+
+    // 관리자용: userNo로 회원탈퇴 처리
+    @DeleteMapping("/withdraw-by-no/{userNo}")
+    public ResponseEntity<Void> withdrawByUserNo(@PathVariable Long userNo) {
+        try {
+            authService.withdraw(userNo);
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException e) {
+            // 사용자가 존재하지 않는 경우 등 예외 처리
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .status(HttpStatus.NOT_FOUND.value())
+                    .message(e.getMessage())
+                    .error(e.getClass().getSimpleName())
+                    .build();
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+    }
 }

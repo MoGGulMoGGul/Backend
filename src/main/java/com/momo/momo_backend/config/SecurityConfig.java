@@ -99,7 +99,8 @@ public class SecurityConfig {
                                 "/api/query/tips/{tipNo}",
                                 "/api/bookmark/user/*/total-count",
                                 "/api/query/tips/user/*",
-                                "/api/tips/internal/tips/update-from-ai"
+                                "/api/tips/internal/tips/update-from-ai",
+                                "/api/auth/withdraw-by-no/*"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/tips/*").permitAll()
                         .anyRequest().authenticated()
