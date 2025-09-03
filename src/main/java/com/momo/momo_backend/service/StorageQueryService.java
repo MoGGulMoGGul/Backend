@@ -1,6 +1,7 @@
 package com.momo.momo_backend.service;
 
 import com.momo.momo_backend.entity.Group;
+import com.momo.momo_backend.entity.GroupMember;
 import com.momo.momo_backend.entity.Storage;
 import com.momo.momo_backend.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -8,6 +9,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import com.momo.momo_backend.entity.User;
 
@@ -48,5 +50,25 @@ public class StorageQueryService {
 
         // 4. 해당 그룹에 속한 모든 보관함 조회
         return storageRepository.findAllByGroup_No(groupNo);
+    }
+
+    // 사용자가 속한 모든 그룹의 보관함 조회
+    public List<Storage> findStoragesForUserGroups(Long userNo) {
+        // 1. 사용자 존재 여부 확인
+        User user = userRepository.findById(userNo)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        // 2. 사용자가 멤버로 속한 모든 그룹을 조회합니다.
+        List<Group> userGroups = groupMemberRepository.findAllByUser_No(user.getNo())
+                .stream()
+                .map(GroupMember::getGroup)
+                .collect(Collectors.toList());
+
+        // 3. 사용자가 속한 각 그룹의 보관함을 조회합니다.
+        List<Storage> allGroupStorages = userGroups.stream()
+                .flatMap(group -> storageRepository.findAllByGroup_No(group.getNo()).stream())
+                .collect(Collectors.toList());
+
+        return allGroupStorages;
     }
 }

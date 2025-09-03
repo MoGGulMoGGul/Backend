@@ -97,4 +97,46 @@ public class StorageQueryController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
+
+    // 사용자가 속한 모든 그룹의 보관함 조회 API
+    @GetMapping("/groups/user/{userNo}")
+    public ResponseEntity<?> getStoragesForUserGroups(
+            @PathVariable Long userNo,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        log.info("사용자의 모든 그룹 보관함 조회 요청 - 요청 사용자: {}, 조회 대상 사용자: {}", userDetails.getUsername(), userNo);
+        try {
+            Long requestingUserNo = userDetails.getUser().getNo();
+
+            // 보안을 위해 요청하는 사용자의 userNo와 경로 변수의 userNo가 일치하는지 확인
+            if (!requestingUserNo.equals(userNo)) {
+                throw new AccessDeniedException("다른 사용자의 그룹 보관함 목록을 조회할 권한이 없습니다.");
+            }
+
+            List<Storage> storages = storageQueryService.findStoragesForUserGroups(userNo);
+
+            // GroupStorageResponse DTO 리스트로 변환
+            List<GroupStorageResponse> responseList = storages.stream()
+                    .map(GroupStorageResponse::from)
+                    .collect(Collectors.toList());
+
+            log.info("사용자 그룹 보관함 목록 조회 성공 - 사용자: {}, 조회된 보관함 수: {}", userNo, responseList.size());
+            return ResponseEntity.ok(responseList);
+        } catch (IllegalArgumentException e) {
+            log.error("사용자 그룹 보관함 목록 조회 실패: {}", e.getMessage());
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .status(HttpStatus.NOT_FOUND.value())
+                    .message(e.getMessage())
+                    .error(e.getClass().getSimpleName())
+                    .build();
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+        } catch (AccessDeniedException e) {
+            log.error("사용자 그룹 보관함 목록 조회 권한 없음: {}", e.getMessage());
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .status(HttpStatus.FORBIDDEN.value())
+                    .message(e.getMessage())
+                    .error(e.getClass().getSimpleName())
+                    .build();
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
+        }
+    }
 }
